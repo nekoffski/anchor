@@ -1,4 +1,4 @@
-.PHONY: all bootstrap require-bootstrap build build-release build-debug test clean fmt fmt-check gen
+.PHONY: all bootstrap require-bootstrap build build-release build-debug package-macos test clean fmt fmt-check gen
 
 CLANG_FORMAT ?= clang-format
 BOOTSTRAP_PROFILE := .anchor/bootstrap.profile
@@ -22,6 +22,9 @@ build-debug: require-bootstrap
 	conan install . --build=missing -pr:a $(BOOTSTRAP_PROFILE) -s build_type=Debug
 	cmake --preset conan-debug
 	cmake --build --preset conan-debug
+
+package-macos: build-release
+	python3 packaging/macos/package.py
 
 fmt:
 	git ls-files '*.cpp' '*.hh' '*.h' | xargs -r $(CLANG_FORMAT) -i

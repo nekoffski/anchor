@@ -15,9 +15,7 @@ struct Config {
         u16 port{4448};
     };
 
-    struct Paths {
-        Path cwd{Path::cwd()};
-    };
+    struct Paths {};
 
     Log log;
     Api api;

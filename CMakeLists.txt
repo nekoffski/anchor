@@ -29,3 +29,20 @@ include(CTest)
 add_subdirectory(src/lib)
 add_subdirectory(src/daemon)
 add_subdirectory(src/cli)
+
+include(GNUInstallDirs)
+install(TARGETS anchor-cli anchord
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+install(FILES packaging/server.conf
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/anchor
+)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(ANCHOR_SYSTEMD_UNIT_DIR "lib/systemd/system" CACHE STRING
+        "systemd unit install directory, relative to the install prefix")
+    configure_file(packaging/anchord.service.in anchord.service @ONLY)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/anchord.service"
+        DESTINATION ${ANCHOR_SYSTEMD_UNIT_DIR}
+    )
+endif()

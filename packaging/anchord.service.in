@@ -1,0 +1,24 @@
+[Unit]
+Description=Anchor daemon
+After=network.target
+
+[Service]
+Type=simple
+User=anchor
+Group=anchor
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/anchord
+WorkingDirectory=/var/lib/anchor
+StateDirectory=anchor
+StateDirectoryMode=0750
+CacheDirectory=anchor
+CacheDirectoryMode=0750
+RuntimeDirectory=anchor
+RuntimeDirectoryMode=0750
+UMask=0027
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

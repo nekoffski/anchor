@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+
+if [ "$(id -u)" -eq 0 ]; then
+    echo "Anchor's macOS service must run as your user, without sudo." >&2
+    exit 1
+fi
+
+case "${HOME:-}" in
+    /*) ;;
+    *) echo "HOME must be an absolute path." >&2; exit 1 ;;
+esac
+
+service_dir=$(CDPATH= cd -P "$(dirname "$0")" && pwd)
+support="$HOME/Library/Application Support/Anchor"
+logs="$HOME/Library/Logs/Anchor"
+
+umask 077
+mkdir -p "$support/config/backups" "$support/workspace" \
+    "$HOME/Library/Caches/Anchor" "$logs"
+config="$support/config/server.conf"
+if [ ! -e "$config" ] && [ ! -L "$config" ]; then
+    cp "$service_dir/../share/anchor/server.conf" "$config"
+fi
+cd "$support/workspace"
+exec "$service_dir/../bin/anchord" "$config" >>"$logs/anchord.log" 2>>"$logs/anchord-error.log"
