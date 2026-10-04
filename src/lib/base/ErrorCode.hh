@@ -6,6 +6,7 @@ namespace anchor {
 
 enum class ErrorCode {
     noError,
+    invalidConfig,
     fileSystemError,
     invalidArgument,
     jsonParsingError,

@@ -16,7 +16,7 @@ support="$HOME/Library/Application Support/Anchor"
 logs="$HOME/Library/Logs/Anchor"
 
 umask 077
-mkdir -p "$support/config/backups" "$support/workspace" \
+mkdir -p "$support/config/plans" "$support/workspace" \
     "$HOME/Library/Caches/Anchor" "$logs"
 config="$support/config/server.conf"
 if [ ! -e "$config" ] && [ ! -L "$config" ]; then

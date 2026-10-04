@@ -14,12 +14,12 @@ require-bootstrap:
 	@test -f $(BOOTSTRAP_PROFILE) || { echo "Run make bootstrap first (or CXX=/path/to/compiler make bootstrap)" >&2; exit 1; }
 
 build-release: require-bootstrap
-	conan install . --build=missing -pr:a $(BOOTSTRAP_PROFILE) -s build_type=Release
+	conan install . --build=missing -pr:a $(BOOTSTRAP_PROFILE) -s build_type=Release -c 'libconfig/*:tools.cmake:configure_args=["-DCMAKE_POLICY_VERSION_MINIMUM=3.5"]'
 	cmake --preset conan-release
 	cmake --build --preset conan-release
 
 build-debug: require-bootstrap
-	conan install . --build=missing -pr:a $(BOOTSTRAP_PROFILE) -s build_type=Debug
+	conan install . --build=missing -pr:a $(BOOTSTRAP_PROFILE) -s build_type=Debug -c 'libconfig/*:tools.cmake:configure_args=["-DCMAKE_POLICY_VERSION_MINIMUM=3.5"]'
 	cmake --preset conan-debug
 	cmake --build --preset conan-debug
 

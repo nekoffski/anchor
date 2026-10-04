@@ -18,6 +18,7 @@ class AnchorConan(ConanFile):
         self.requires("stduuid/1.2.3")
         self.requires("nlohmann_json/3.12.0")
         self.requires("asio/1.30.2")
+        self.requires("libconfig/1.7.3")
 
     def build_requirements(self):
         self.test_requires("gtest/1.15.0")

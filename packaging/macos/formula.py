@@ -26,20 +26,32 @@ def generate(archives, repository, local=False):
         if architecture in releases:
             raise ValueError(f"duplicate architecture: {architecture}")
         with tarfile.open(archive, "r:gz") as bundle:
-            metadata_file = bundle.extractfile(archive.name.removesuffix(".tar.gz") + "/release.json")
+            metadata_file = bundle.extractfile(
+                archive.name.removesuffix(".tar.gz") + "/release.json"
+            )
             if metadata_file is None:
                 raise ValueError("archive is missing release.json")
             with metadata_file:
                 metadata = json.load(metadata_file)
-        if metadata.get("version") != version or metadata.get("architecture") != architecture:
+        if (
+            metadata.get("version") != version
+            or metadata.get("architecture") != architecture
+        ):
             raise ValueError("release metadata does not match the archive name")
         minimum = metadata.get("minimum_macos", "")
-        if not isinstance(minimum, str) or not re.fullmatch(r"[0-9]+\.[0-9]+(?:\.[0-9]+)?", minimum):
+        if not isinstance(minimum, str) or not re.fullmatch(
+            r"[0-9]+\.[0-9]+(?:\.[0-9]+)?", minimum
+        ):
             raise ValueError("invalid minimum macOS version")
         releases[architecture] = (
-            archive.name, hashlib.sha256(archive.read_bytes()).hexdigest(), minimum,
-            archive.resolve().as_uri() if local else
-            f"https://github.com/{repository}/releases/download/v{version}/{archive.name}",
+            archive.name,
+            hashlib.sha256(archive.read_bytes()).hexdigest(),
+            minimum,
+            (
+                archive.resolve().as_uri()
+                if local
+                else f"https://github.com/{repository}/releases/download/v{version}/{archive.name}"
+            ),
         )
     if len(versions) != 1:
         raise ValueError("archives must all have the same version")
@@ -98,6 +110,9 @@ def generate(archives, repository, local=False):
         "      Logs are appended in ~/Library/Logs/Anchor/.",
         "      server.conf is copied into the user's config directory on first startup",
         "      and passed to anchord as its first argument. Existing files are preserved.",
+        "      Backup plan .conf files belong in:",
+        "        ~/Library/Application Support/Anchor/config/plans/",
+        "      server.conf uses paths workspace_dir and backup_plans_dir.",
         "      Grant anchord Full Disk Access in System Settings if backup sources require it.",
         "      The daemon does not yet load configuration files.",
         "    EOS",
@@ -119,7 +134,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("archives", type=Path, nargs="+")
     parser.add_argument("--repository", default="nekoffski/anchor")
-    parser.add_argument("--local", action="store_true", help="use local file URLs instead of GitHub releases")
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="use local file URLs instead of GitHub releases",
+    )
     parser.add_argument("--output", type=Path, default=Path("dist/Formula/anchor.rb"))
     args = parser.parse_args()
     try:

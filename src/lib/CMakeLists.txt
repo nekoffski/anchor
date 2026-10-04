@@ -12,6 +12,7 @@ add_library(anchor STATIC
     "base/Config.cpp"
     "base/Handle.cpp"
     "base/Json.cpp"
+    "base/LibconfigReader.cpp"
     "base/runtime/Thread.cpp"
     "base/runtime/SignalHandler.cpp"
     # -- proto
@@ -32,6 +33,7 @@ find_package(stduuid CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(asio CONFIG REQUIRED)
+find_package(libconfig CONFIG REQUIRED)
 
 target_link_libraries(anchor
     PUBLIC
@@ -40,12 +42,15 @@ target_link_libraries(anchor
         stduuid::stduuid
         nlohmann_json::nlohmann_json
         asio::asio
+        libconfig::libconfig
 )
 
 if (ANCHOR_ENABLE_PROFILING)
     target_compile_definitions(anchor PRIVATE ANCHOR_ENABLE_PROFILING=1)
 endif()
 
-# if (BUILD_TESTING)
-    # add_subdirectory(tests)
-# endif()
+if(BUILD_TESTING)
+    add_executable(config-test tests/ConfigTest.cpp)
+    target_link_libraries(config-test PRIVATE anchor)
+    add_test(NAME config COMMAND config-test "${CMAKE_CURRENT_BINARY_DIR}/config-test.conf")
+endif()

@@ -88,9 +88,9 @@ class PackagingTests(unittest.TestCase):
         support = (self.directory / "Library/Application Support/Anchor").resolve()
         config_dir = support / "config"
         workspace = (config_dir / config["paths"]["workspace_dir"]).resolve()
-        backups = (config_dir / config["paths"]["backup_config_dir"]).resolve()
+        plans = (config_dir / config["paths"]["backup_plans_dir"]).resolve()
         self.assertEqual(workspace, support / "workspace")
-        self.assertEqual(backups, config_dir / "backups")
+        self.assertEqual(plans, config_dir / "plans")
 
 
 if __name__ == "__main__":

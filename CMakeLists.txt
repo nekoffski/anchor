@@ -1,4 +1,7 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.6)
+if(POLICY CMP0156)
+    cmake_policy(SET CMP0156 NEW)
+endif()
 project(anchor VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)

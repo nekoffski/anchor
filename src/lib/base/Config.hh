@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core.hh"
+#include "Error.hh"
 #include "FileSystem.hh"
 #include "Log.hh"
 
@@ -15,7 +16,12 @@ struct Config {
         u16 port{4448};
     };
 
-    struct Paths {};
+    struct Paths {
+        Path workspace;
+        Path backupPlans;
+    };
+
+    static Result<Config> load(const Path& path);
 
     Log log;
     Api api;

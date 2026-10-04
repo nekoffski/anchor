@@ -20,7 +20,7 @@ At service startup the launcher prepares these private user directories:
 | Purpose | Path |
 | --- | --- |
 | Configuration | `~/Library/Application Support/Anchor/config/` |
-| Backup definitions (`.conf` files) | `~/Library/Application Support/Anchor/config/backups/` |
+| Backup plans (`.conf` files) | `~/Library/Application Support/Anchor/config/plans/` |
 | Persistent workspace | `~/Library/Application Support/Anchor/workspace/` |
 | Cache | `~/Library/Caches/Anchor/` |
 | Logs | `~/Library/Logs/Anchor/` |
@@ -37,17 +37,29 @@ not implemented yet.
 
 The packaged configuration contains:
 
-```ini
-[paths]
-workspace_dir = ../workspace
-backup_config_dir = backups
+```conf
+paths = {
+    workspace_dir = ../workspace
+    backup_plans_dir = plans
+}
 ```
 
 Relative paths are intended to resolve against the directory containing
 `server.conf`, not the daemon's working directory. These defaults identify the
-workspace and backup-definition directories above without embedding a username.
+workspace and backup-plan directories above without embedding a username.
 New installations receive this file automatically. Existing files, including
 empty configurations from earlier installations, are preserved.
+
+`workspace_dir` holds durable state such as SQLite databases and other
+application files. `backup_plans_dir` holds the `.conf` files describing backup
+plans. Backup data goes to the destinations specified by those plans, separately
+from Anchor's internal workspace.
+
+When upgrading an earlier installation, the launcher creates `config/plans`
+but preserves existing configuration and files. If `server.conf` still uses
+`backup_config_dir`, rename that setting to `backup_plans_dir`. Use `plans` for
+the new directory and move existing plan files there, or retain the old directory
+as the setting's value. Packaging does not automatically migrate existing plans.
 
 For protected backup sources, grant the daemon Full Disk Access in System
 Settings > Privacy & Security. This does not grant access beyond the service
