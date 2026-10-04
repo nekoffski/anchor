@@ -5,23 +5,16 @@
 namespace anchor {
 
 enum class ErrorCode {
-    noError = 0,
-    fileSystemError = 1,
-    invalidArgument = 2,
-    rendererCommandRejected = 3,
-    backendMismatch = 4,
-    surfaceCreationFailed = 5,
-    tooManyFrameRequests = 6,
-    tooManyFramesInFlight = 7,
-    renderEncodingFailed = 8,
-    renderSurfaceNotDrawable = 9,
-    jsonParsingError = 10,
-    fileNotFound = 11,
-    shaderParsingError = 12,
-    invalidFuture = 13,
-    metalError = 14,
-    deviceOperationFailed = 15,
-    notImplemented = 1337,
+    noError,
+    fileSystemError,
+    invalidArgument,
+    jsonParsingError,
+    fileNotFound,
+    eof,
+    connectionFailure,
+    transientNetworkError,
+    bufferOverflow,
+    serializationFailure
 };
 
 }  // namespace anchor

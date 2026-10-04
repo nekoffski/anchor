@@ -11,21 +11,16 @@ struct Config {
         log::Level level{log::Level::trace};
     };
 
-    struct Paths {
-        Path cwd{Path::cwd()};
-        Path assets{Path::join(cwd, "assets")};
+    struct Api {
+        u16 port{4448};
     };
 
-    struct Renderer {
-        u16 maxFramesInFlight{3u};
-        u16 maxTextures{64u};
-        u16 maxMeshes{128u};
-        u16 maxRenderPasses{8u};
-        u16 maxShaders{32u};
+    struct Paths {
+        Path cwd{Path::cwd()};
     };
 
     Log log;
-    Renderer renderer;
+    Api api;
     Paths paths;
 };
 
