@@ -21,6 +21,16 @@ Result<std::unique_ptr<Message>> Message::create(const Json& json) {
     if (name == "DiagnosticRequest") {
         return DiagnosticRequest::create(body);
     }
+    if (name == "AckResponse") {
+        return std::make_unique<AckResponse>();
+    }
+    if (name == "ErrorResponse") {
+        return std::make_unique<ErrorResponse>(
+            static_cast<ErrorCode>(body.at("code").get<int>()),
+            body.at("message").get<Str>()
+        );
+    }
+    return Error::unexpected(ErrorCode::invalidRequest, "Unknown message name");
 }
 
 Json Message::serialize() const {

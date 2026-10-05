@@ -90,7 +90,7 @@ def generate(archives, repository, local=False):
             "    end",
         ]
     lines += [
-        '    bin.install "bin/anchor-cli", "bin/anchord"',
+        '    bin.install "bin/anchor", "bin/anchord"',
         '    libexec.install "libexec/anchor-service"',
         '    pkgshare.install "share/anchor/server.conf"',
         "  end",
@@ -119,7 +119,7 @@ def generate(archives, repository, local=False):
         "  end",
         "",
         "  test do",
-        '    system bin/"anchor-cli"',
+        '    system bin/"anchor", "--help"',
         '    assert_predicate bin/"anchord", :executable?',
         '    assert_predicate libexec/"anchor-service", :executable?',
         '    assert_predicate pkgshare/"server.conf", :file?',

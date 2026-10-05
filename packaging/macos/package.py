@@ -35,7 +35,7 @@ def package(build_dir, output_dir):
         )
         architecture = None
         minimum_versions = []
-        for name in ("anchor-cli", "anchord"):
+        for name in ("anchor", "anchord"):
             binary = staging / "bin" / name
             detected = subprocess.check_output(
                 ["lipo", "-archs", str(binary)], text=True

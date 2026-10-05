@@ -13,6 +13,7 @@ class AnchorConan(ConanFile):
     }
 
     def requirements(self):
+        self.requires("cli11/2.4.2")
         self.requires("fmt/10.2.1")
         self.requires("spdlog/1.14.1")
         self.requires("stduuid/1.2.3")

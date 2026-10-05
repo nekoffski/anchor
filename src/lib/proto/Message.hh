@@ -51,6 +51,8 @@ class ErrorResponse : public MessageImpl<ErrorResponse> {
     explicit ErrorResponse(const Error& error)
         : MessageImpl<ErrorResponse>("ErrorResponse"), m_error(error) {}
 
+    const Error& error() const { return m_error; }
+
     virtual Json serializeBody() const override {
         Json json;
         json["message"] = m_error.message();

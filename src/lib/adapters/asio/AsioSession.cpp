@@ -41,6 +41,11 @@ asio::awaitable<void> AsioSession::start() {
         auto req = co_await readRequest();
 
         if (not req) {
+            if (req.error().code() == ErrorCode::eof) {
+                log::info("{} - client disconnected", m_ident);
+                co_return;
+            }
+
             log::error("{} - error reading request - {}", m_ident, req.error());
             proto::ErrorResponse response{req.error()};
             co_return co_await writeResponse(response);
@@ -56,10 +61,12 @@ AsioSession::readRequest() {
     auto message = co_await read();
 
     if (not message) {
-        log::error(
-            "{} - error reading from socket: {}", m_ident,
-            message.error().message()
-        );
+        if (message.error().code() != ErrorCode::eof) {
+            log::error(
+                "{} - error reading from socket: {}", m_ident,
+                message.error().message()
+            );
+        }
         co_return Error::unexpected(message.error());
     }
 
@@ -76,7 +83,7 @@ AsioSession::readRequest() {
 asio::awaitable<void> AsioSession::writeResponse(
     const proto::Message& message
 ) {
-    auto json = message.serialize().dump();
+    auto json = message.serialize().dump() + '\n';
 
     if (auto response = co_await write(json); not response) {
         log::error(

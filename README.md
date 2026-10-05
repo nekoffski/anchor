@@ -1,5 +1,25 @@
 # Anchor
 
+## CLI
+
+`anchor` runs one command and exits. It connects to the local daemon on port
+`4448` by default; use `--port PORT` to override it. The CLI does not read a
+configuration file and disables logging. Diagnostics sends the library's
+diagnostic request and reads the daemon's acknowledgement over a synchronous connection.
+Sync and backup commands currently print mock output without contacting the daemon.
+
+```sh
+anchor diagnostics
+anchor --port 4448 diagnostics --details "manual check"
+anchor sync
+anchor backup trigger --name daily
+anchor backup list
+anchor backup activate --name daily
+anchor backup status
+anchor backup status --name daily
+anchor --help
+```
+
 ## Installation
 
 ### macOS: Homebrew user service
@@ -9,7 +29,7 @@ the service (for example, `kaper`), with that user's file permissions. It does
 not use a separate `anchor` account. Start it without `sudo`; the service
 launcher refuses to run as root.
 
-The package provides `anchor-cli` and `anchord` in Homebrew's `bin` directory
+The package provides `anchor` and `anchord` in Homebrew's `bin` directory
 and a service launcher in the formula's `libexec` directory. Homebrew generates
 the LaunchAgent from the formula's `service` block. The service starts at login
 and can run while the screen is locked; it does not run before login or after
@@ -166,7 +186,7 @@ python3 -m unittest discover -s packaging/macos -v
 
 ### CMake installation and Linux service draft
 
-CMake installs `anchor-cli` and `anchord` into the install prefix's `bin`
+CMake installs `anchor` and `anchord` into the install prefix's `bin`
 directory. On Linux it also installs `anchord.service` into
 `lib/systemd/system` under that prefix. Override `ANCHOR_SYSTEMD_UNIT_DIR`
 at configure time if the distribution uses a different unit directory.
