@@ -2,10 +2,24 @@
 
 namespace anchor {
 
-std::unique_ptr<Message> anchor::AsioController::handle(
-    const Message& message
+AsioController::AsioController(RequestSender sender) : m_sender(sender) {}
+
+std::unique_ptr<proto::Message> anchor::AsioController::handle(
+    const proto::Message& message
 ) {
-    return std::unique_ptr<Message>();
+    if (const auto* req = message.as<proto::DiagnosticRequest>()) {
+        if (not m_sender.send(DiagnosticRequest{req->details()})) {
+            return std::make_unique<proto::ErrorResponse>(Error{
+                ErrorCode::connectionFailure,
+                "Failed to send request, server is closing"
+            });
+        }
+        return std::make_unique<proto::AckResponse>();
+    }
+
+    return std::make_unique<proto::ErrorResponse>(
+        Error{ErrorCode::invalidRequest, "Invalid request"}
+    );
 }
 
 }  // namespace anchor

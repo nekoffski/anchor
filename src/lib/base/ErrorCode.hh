@@ -11,6 +11,7 @@ enum class ErrorCode {
     invalidArgument,
     jsonParsingError,
     fileNotFound,
+    invalidRequest,
     eof,
     connectionFailure,
     transientNetworkError,

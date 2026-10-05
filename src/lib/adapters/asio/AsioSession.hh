@@ -20,8 +20,8 @@ class AsioSession : public NonCopyable, public NonMovable {
     asio::awaitable<void> start();
 
    private:
-    asio::awaitable<Result<std::unique_ptr<Message>>> readRequest();
-    asio::awaitable<void> writeResponse(const Message& message);
+    asio::awaitable<Result<std::unique_ptr<proto::Message>>> readRequest();
+    asio::awaitable<void> writeResponse(const proto::Message& message);
 
     asio::awaitable<Result<Str>> read();
     asio::awaitable<Result<void>> write(const Str& message);

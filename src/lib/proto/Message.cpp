@@ -1,9 +1,26 @@
 #include "Message.hh"
 
-namespace anchor {
+namespace anchor::proto {
 
 Result<std::unique_ptr<Message>> Message::create(const Json& json) {
-    return nullptr;
+    if (json.find("name") == json.end()) {
+        return Error::unexpected(
+            ErrorCode::invalidArgument, "Missing message name"
+        );
+    }
+
+    if (json.find("body") == json.end()) {
+        return Error::unexpected(
+            ErrorCode::invalidArgument, "Missing message body"
+        );
+    }
+
+    const auto& name = json["name"];
+    const auto& body = json["body"];
+
+    if (name == "DiagnosticRequest") {
+        return DiagnosticRequest::create(body);
+    }
 }
 
 Json Message::serialize() const {
@@ -13,4 +30,4 @@ Json Message::serialize() const {
     return json;
 }
 
-}  // namespace anchor
+}  // namespace anchor::proto

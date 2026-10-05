@@ -7,7 +7,7 @@
 #include "base/Error.hh"
 #include "base/Json.hh"
 
-namespace anchor {
+namespace anchor::proto {
 
 class Message : public NonCopyable, public NonMovable {
    public:
@@ -17,9 +17,10 @@ class Message : public NonCopyable, public NonMovable {
     Json serialize() const;
 
     template <typename T>
-    T* as() {
+        requires std::is_base_of_v<Message, T>
+    const T* as() const {
         if (type() == typeid(T)) {
-            return static_cast<T*>(this);
+            return static_cast<const T*>(this);
         }
         return nullptr;
     }
@@ -42,10 +43,13 @@ class MessageImpl : public Message {
     Str m_name;
 };
 
-class ErrorMessage : public MessageImpl<ErrorMessage> {
+class ErrorResponse : public MessageImpl<ErrorResponse> {
    public:
-    ErrorMessage(const Error& error)
-        : MessageImpl<ErrorMessage>("ErrorMessage"), m_error(error) {}
+    explicit ErrorResponse(ErrorCode code, const Str& message)
+        : ErrorResponse(Error{code, message}) {}
+
+    explicit ErrorResponse(const Error& error)
+        : MessageImpl<ErrorResponse>("ErrorResponse"), m_error(error) {}
 
     virtual Json serializeBody() const override {
         Json json;
@@ -58,4 +62,33 @@ class ErrorMessage : public MessageImpl<ErrorMessage> {
     Error m_error;
 };
 
-}  // namespace anchor
+class DiagnosticRequest : public MessageImpl<DiagnosticRequest> {
+   public:
+    DiagnosticRequest(const Str& details)
+        : MessageImpl<DiagnosticRequest>("DiagnosticRequest"),
+          m_details(details) {}
+
+    virtual Json serializeBody() const override {
+        Json json;
+        json["details"] = m_details;
+        return json;
+    }
+
+    static std::unique_ptr<DiagnosticRequest> create(const Json& json) {
+        return std::make_unique<DiagnosticRequest>(json["details"].get<Str>());
+    }
+
+    const Str& details() const { return m_details; }
+
+   private:
+    Str m_details;
+};
+
+class AckResponse : public MessageImpl<AckResponse> {
+   public:
+    AckResponse() : MessageImpl<AckResponse>("AckResponse") {}
+
+    virtual Json serializeBody() const override { return Json{}; }
+};
+
+}  // namespace anchor::proto

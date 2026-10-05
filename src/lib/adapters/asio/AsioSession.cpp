@@ -42,7 +42,7 @@ asio::awaitable<void> AsioSession::start() {
 
         if (not req) {
             log::error("{} - error reading request - {}", m_ident, req.error());
-            ErrorMessage response{req.error()};
+            proto::ErrorResponse response{req.error()};
             co_return co_await writeResponse(response);
         }
 
@@ -51,7 +51,8 @@ asio::awaitable<void> AsioSession::start() {
     }
 }
 
-asio::awaitable<Result<std::unique_ptr<Message>>> AsioSession::readRequest() {
+asio::awaitable<Result<std::unique_ptr<proto::Message>>>
+AsioSession::readRequest() {
     auto message = co_await read();
 
     if (not message) {
@@ -69,10 +70,12 @@ asio::awaitable<Result<std::unique_ptr<Message>>> AsioSession::readRequest() {
         co_return Error::unexpected(json.error());
     }
 
-    co_return Message::create(json.value());
+    co_return proto::Message::create(json.value());
 }
 
-asio::awaitable<void> AsioSession::writeResponse(const Message& message) {
+asio::awaitable<void> AsioSession::writeResponse(
+    const proto::Message& message
+) {
     auto json = message.serialize().dump();
 
     if (auto response = co_await write(json); not response) {
