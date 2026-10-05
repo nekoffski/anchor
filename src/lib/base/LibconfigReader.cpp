@@ -2,7 +2,15 @@
 
 namespace anchor {
 
-Result<LibconfigReader> LibconfigReader::create(const Path& path) {
+Result<LibconfigReader> LibconfigReader::create(
+    const Path& path, const FileSystem& fs
+) {
+    if (not fs.exists(path)) {
+        return Error::unexpected(
+            ErrorCode::fileNotFound, "File not found: {}", path.str()
+        );
+    }
+
     auto config = std::make_unique<libconfig::Config>();
 
     try {

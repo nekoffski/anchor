@@ -4,6 +4,7 @@
 #include "base/Log.hh"
 #include "base/Unwrap.hh"
 #include "base/runtime/SignalHandler.hh"
+#include "core/services/BackupOrchestrator.hh"
 
 using namespace anchor;
 
@@ -27,6 +28,9 @@ int main(int argc, const char** argv) {
     AsioServer server{cfg, controller};
     server.start();
 
+    BackupOrchestrator orchestrator{cfg};
+    orchestrator.start();
+
     signals.wait([&](Signal s) {
         log::info("received signal: {}", toString(s));
 
@@ -34,12 +38,12 @@ int main(int argc, const char** argv) {
             log::info("received shutdown request");
 
             server.stop();
+            orchestrator.stop();
             return SignalAction::stop;
         }
         return SignalAction::waitForNext;
     });
 
-    Thread::join(server);
-
+    Thread::join(server, orchestrator);
     return 0;
 }

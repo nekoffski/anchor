@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+#include "Concepts.hh"
 #include "Core.hh"
 #include "Error.hh"
 
@@ -22,11 +23,6 @@ class Path {
     }
 
     const Str& str() const;
-
-    bool isFile() const;
-    bool isDirectory() const;
-    bool exists() const;
-
     Path parent() const;
 
     static Path join(const Path& base, const Path& relative);
@@ -39,42 +35,27 @@ class Path {
     Str m_path;
 };
 
+class FileSystem : public NonCopyable, public NonMovable {
+   public:
+    virtual ~FileSystem() = default;
+
+    virtual bool isFile(const Path& path) const;
+    virtual bool isDirectory(const Path& path) const;
+    virtual bool exists(const Path& path) const;
+
+    virtual std::vector<Path> listFiles(const Path& path) const;
+    virtual std::vector<Path> listDirectories(const Path& path) const;
+    virtual Result<void> remove(const Path& path) const;
+    virtual Result<void> touch(const Path& path) const;
+    virtual Result<Path> createDirectory(const Path& path) const;
+
+    virtual Result<void> appendFile(const Path& path, const Str& content) const;
+    virtual Result<void> writeFile(const Path& path, const Str& content) const;
+    virtual Result<Str> readFile(const Path& path) const;
+    virtual Result<std::vector<Str>> readLines(const Path& path) const;
+    virtual Result<std::vector<Byte>> readBinary(const Path& path) const;
+};
+
 Path operator+(const Path& lhs, const Str& suffix);
-
-class File {
-   public:
-    explicit File(const Path& path);
-
-    const Path& path() const;
-
-    Result<void> append(const Str& content);
-    Result<void> write(const Str& content);
-    Result<Str> read() const;
-    Result<std::vector<Str>> readLines() const;
-    Result<std::vector<Byte>> readBinary() const;
-
-    Result<void> remove();
-
-   private:
-    Path m_path;
-};
-
-class Directory {
-   public:
-    explicit Directory(const Path& path);
-
-    const Path& path() const;
-
-    std::vector<Path> listFiles() const;
-    std::vector<Path> listDirectories() const;
-
-    Result<void> create();
-    Result<void> createSubdirectory(const Path& name);
-    Result<void> touch(const Path& name);
-    Result<void> remove();
-
-   private:
-    Path m_path;
-};
 
 }  // namespace anchor

@@ -11,7 +11,9 @@ namespace anchor {
 
 class LibconfigReader : public NonCopyable {
    public:
-    static Result<LibconfigReader> create(const Path& path);
+    static Result<LibconfigReader> create(
+        const Path& path, const FileSystem& fs = FileSystem{}
+    );
 
     template <typename T>
     bool lookup(const Str& key, T& value) {

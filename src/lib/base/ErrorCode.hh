@@ -15,7 +15,7 @@ enum class ErrorCode {
     connectionFailure,
     transientNetworkError,
     bufferOverflow,
-    serializationFailure
+    serializationFailure,
 };
 
 }  // namespace anchor

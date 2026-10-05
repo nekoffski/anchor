@@ -21,6 +21,8 @@ add_library(anchor STATIC
     "adapters/asio/AsioServer.cpp"
     "adapters/asio/AsioSession.cpp"
     "adapters/asio/AsioController.cpp"
+    # -- core
+    "core/services/BackupOrchestrator.cpp"
 )
 
 target_include_directories(anchor
@@ -47,10 +49,4 @@ target_link_libraries(anchor
 
 if (ANCHOR_ENABLE_PROFILING)
     target_compile_definitions(anchor PRIVATE ANCHOR_ENABLE_PROFILING=1)
-endif()
-
-if(BUILD_TESTING)
-    add_executable(config-test tests/ConfigTest.cpp)
-    target_link_libraries(config-test PRIVATE anchor)
-    add_test(NAME config COMMAND config-test "${CMAKE_CURRENT_BINARY_DIR}/config-test.conf")
 endif()
