@@ -20,11 +20,11 @@ Result<std::unique_ptr<Message>> Message::create(const Json& json) {
 
     if (name == "DiagnosticRequest") {
         return DiagnosticRequest::create(body);
-    }
-    if (name == "AckResponse") {
+    } else if (name == "AckResponse") {
         return std::make_unique<AckResponse>();
-    }
-    if (name == "ErrorResponse") {
+    } else if (name == "TriggerBackupRequest") {
+        return TriggerBackupRequest::create(body);
+    } else if (name == "ErrorResponse") {
         return std::make_unique<ErrorResponse>(
             static_cast<ErrorCode>(body.at("code").get<int>()),
             body.at("message").get<Str>()

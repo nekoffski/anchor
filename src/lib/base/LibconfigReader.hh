@@ -16,13 +16,24 @@ class LibconfigReader : public NonCopyable {
     );
 
     template <typename T>
-    bool lookup(const Str& key, T& value) {
+    bool lookup(const Str& key, T& value) const {
         return m_config->lookupValue(key.c_str(), value);
     }
 
-    bool lookup(const Str& key, u16& value);
-    bool lookup(const Str& key, u32& value);
-    bool lookup(const Str& key, Path& path);
+    bool lookup(const Str& key, u16& value) const;
+    bool lookup(const Str& key, u32& value) const;
+    bool lookup(const Str& key, Path& path) const;
+
+    template <typename T>
+    Result<T> lookup(const Str& key) const {
+        T value;
+        if (not lookup(key, value)) {
+            return Error::unexpected(
+                ErrorCode::invalidConfig, "Missing field: {}", key
+            );
+        }
+        return value;
+    }
 
    private:
     explicit LibconfigReader(std::unique_ptr<libconfig::Config> config);

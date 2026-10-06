@@ -64,6 +64,28 @@ class ErrorResponse : public MessageImpl<ErrorResponse> {
     Error m_error;
 };
 
+class TriggerBackupRequest : public MessageImpl<TriggerBackupRequest> {
+   public:
+    TriggerBackupRequest(const Str& name)
+        : MessageImpl<TriggerBackupRequest>("TriggerBackupRequest"),
+          m_name(name) {}
+
+    virtual Json serializeBody() const override {
+        Json json;
+        json["name"] = m_name;
+        return json;
+    }
+
+    const Str& backupName() const { return m_name; }
+
+    static std::unique_ptr<TriggerBackupRequest> create(const Json& json) {
+        return std::make_unique<TriggerBackupRequest>(json["name"].get<Str>());
+    }
+
+   private:
+    Str m_name;
+};
+
 class DiagnosticRequest : public MessageImpl<DiagnosticRequest> {
    public:
     DiagnosticRequest(const Str& details)

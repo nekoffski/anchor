@@ -12,6 +12,10 @@
 
 namespace anchor {
 
+std::vector<std::string> split(
+    const std::string& input, const std::string& separator
+);
+
 template <u64 N>
 struct StringLiteral {
     constexpr StringLiteral(const char (&str)[N]) {

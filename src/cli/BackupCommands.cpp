@@ -50,7 +50,14 @@ void BackupCommands::initStatus() {
         ->check(validateName);
 }
 
-Result<void> BackupCommands::run() const {
+Result<void> BackupCommands::run(u16 port) {
+    if (auto res = m_client.connect(port); not res) {
+        return Error::unexpected(
+            ErrorCode::connectionFailure, "Failed to connect to daemon: {}",
+            res.error()
+        );
+    }
+
     if (m_command.got_subcommand("trigger")) {
         return trigger();
     }
@@ -68,19 +75,40 @@ Result<void> BackupCommands::run() const {
     );
 }
 
-Result<void> BackupCommands::trigger() const {
-    fmt::print(
-        "Mock: backup trigger for '{}' is not implemented yet.\n", m_triggerName
-    );
+Result<void> BackupCommands::trigger() {
+    proto::TriggerBackupRequest request{m_triggerName};
+
+    if (auto res = m_client.send(request); not res) {
+        return Error::unexpected(
+            ErrorCode::connectionFailure,
+            "Failed to send trigger backup request: {}", res.error()
+        );
+    }
+
+    auto response = m_client.receive();
+
+    if (not response) {
+        return Error::unexpected(
+            ErrorCode::connectionFailure,
+            "Failed to receive trigger backup response: {}", response.error()
+        );
+    }
+
+    if (response->get()->as<proto::AckResponse>()) {
+        fmt::print("Backup triggered successfully.\n");
+    } else if (auto* res = response->get()->as<proto::ErrorResponse>()) {
+        return Error::unexpected(res->error());
+    }
+
     return {};
 }
 
-Result<void> BackupCommands::list() const {
+Result<void> BackupCommands::list() {
     fmt::print("Mock: backup list is not implemented yet.\n");
     return {};
 }
 
-Result<void> BackupCommands::activate() const {
+Result<void> BackupCommands::activate() {
     fmt::print(
         "Mock: backup activate for '{}' is not implemented yet.\n",
         m_activateName
@@ -88,7 +116,7 @@ Result<void> BackupCommands::activate() const {
     return {};
 }
 
-Result<void> BackupCommands::status() const {
+Result<void> BackupCommands::status() {
     fmt::print(
         "Mock: backup status for '{}' is not implemented yet.\n",
         m_statusName.value_or("all backups")

@@ -31,7 +31,7 @@ int Application::run(int argc, const char** argv) {
     return 0;
 }
 
-Result<void> Application::runCommand() const {
+Result<void> Application::runCommand() {
     if (m_diagnostics.selected()) {
         return m_diagnostics.run(m_port);
     }
@@ -39,7 +39,7 @@ Result<void> Application::runCommand() const {
         return m_sync.run();
     }
     if (m_backup.selected()) {
-        return m_backup.run();
+        return m_backup.run(m_port);
     }
     return Error::unexpected(ErrorCode::invalidArgument, "Missing command");
 }

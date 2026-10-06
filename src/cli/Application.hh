@@ -15,7 +15,7 @@ class Application : public NonCopyable, public NonMovable {
     int run(int argc, const char** argv);
 
    private:
-    Result<void> runCommand() const;
+    Result<void> runCommand();
 
     CLI::App m_app{"Anchor one-shot CLI", "anchor"};
     u16 m_port{Config::Api{}.port};

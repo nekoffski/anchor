@@ -21,9 +21,13 @@ add_library(anchor STATIC
     "adapters/asio/AsioServer.cpp"
     "adapters/asio/AsioSession.cpp"
     "adapters/asio/AsioController.cpp"
-    "adapters/disk/DiskBackupPlanRepository.cpp"
+    "adapters/backup/DiskBackupPlanRepository.cpp"
     # -- core
-    "core/services/BackupOrchestrator.cpp"
+    "core/services/BackupService.cpp"
+    "core/services/BackupServiceRunner.cpp"
+    # -- domain
+    "core/domain/Snapshot.cpp"
+    "core/domain/Backup.cpp"
 )
 
 target_include_directories(anchor

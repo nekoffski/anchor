@@ -8,6 +8,10 @@ struct DiagnosticRequest {
     Str details;
 };
 
-using Request = std::variant<DiagnosticRequest>;
+struct TriggerBackupRequest {
+    Str name;
+};
+
+using Request = std::variant<DiagnosticRequest, TriggerBackupRequest>;
 
 }  // namespace anchor

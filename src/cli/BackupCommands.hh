@@ -2,6 +2,7 @@
 
 #include <CLI/CLI.hpp>
 
+#include "Client.hh"
 #include "base/Concepts.hh"
 #include "base/Core.hh"
 #include "base/Error.hh"
@@ -13,7 +14,7 @@ class BackupCommands : public NonCopyable, public NonMovable {
     explicit BackupCommands(CLI::App& app);
 
     bool selected() const { return m_command.parsed(); }
-    Result<void> run() const;
+    Result<void> run(u16 port);
 
    private:
     void initTrigger();
@@ -21,12 +22,13 @@ class BackupCommands : public NonCopyable, public NonMovable {
     void initActivate();
     void initStatus();
 
-    Result<void> trigger() const;
-    Result<void> list() const;
-    Result<void> activate() const;
-    Result<void> status() const;
+    Result<void> trigger();
+    Result<void> list();
+    Result<void> activate();
+    Result<void> status();
 
     CLI::App& m_command;
+    Client m_client;
     Str m_triggerName;
     Str m_activateName;
     Opt<Str> m_statusName;

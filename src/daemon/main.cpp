@@ -1,11 +1,12 @@
 
 #include "adapters/asio/AsioServer.hh"
-#include "adapters/disk/DiskBackupPlanRepository.hh"
+#include "adapters/backup/DiskBackupPlanRepository.hh"
 #include "base/Functional.hh"
 #include "base/Log.hh"
 #include "base/Unwrap.hh"
 #include "base/runtime/SignalHandler.hh"
-#include "core/services/BackupOrchestrator.hh"
+#include "core/services/BackupService.hh"
+#include "core/services/BackupServiceRunner.hh"
 #include "core/services/RequestQueue.hh"
 
 using namespace anchor;
@@ -36,11 +37,11 @@ int main(int argc, const char** argv) {
     AsioServer server{cfg, controller};
     server.start();
 
-    BackupOrchestrator orchestrator{cfg, backupPlanRepository};
-    BackupOrchestratorRunner orchestratorRunner{
-        orchestrator, RequestReceiver{requestQueue}
+    BackupService backupService{cfg, backupPlanRepository};
+    BackupServiceRunner backupServiceRunner{
+        backupService, RequestReceiver{requestQueue}
     };
-    orchestratorRunner.start();
+    backupServiceRunner.start();
 
     signals.wait([&](Signal s) {
         log::info("received signal: {}", toString(s));
@@ -49,7 +50,7 @@ int main(int argc, const char** argv) {
             log::info("received shutdown request");
 
             server.stop();
-            orchestratorRunner.stop();
+            backupServiceRunner.stop();
             requestQueue.close();
 
             return SignalAction::stop;
@@ -57,6 +58,6 @@ int main(int argc, const char** argv) {
         return SignalAction::waitForNext;
     });
 
-    Thread::join(server, orchestratorRunner);
+    Thread::join(server, backupServiceRunner);
     return 0;
 }

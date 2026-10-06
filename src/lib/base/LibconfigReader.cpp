@@ -25,7 +25,7 @@ Result<LibconfigReader> LibconfigReader::create(
     return LibconfigReader{std::move(config)};
 }
 
-bool LibconfigReader::lookup(const Str& key, u16& value) {
+bool LibconfigReader::lookup(const Str& key, u16& value) const {
     int v;
     if (not m_config->lookupValue(key.c_str(), v) or v < 0 or
         v > maxOf<u16>()) {
@@ -35,7 +35,7 @@ bool LibconfigReader::lookup(const Str& key, u16& value) {
     return true;
 }
 
-bool LibconfigReader::lookup(const Str& key, u32& value) {
+bool LibconfigReader::lookup(const Str& key, u32& value) const {
     unsigned int v;
 
     if (m_config->lookupValue(key.c_str(), v)) {
@@ -46,7 +46,7 @@ bool LibconfigReader::lookup(const Str& key, u32& value) {
     return false;
 }
 
-bool LibconfigReader::lookup(const Str& key, Path& path) {
+bool LibconfigReader::lookup(const Str& key, Path& path) const {
     Str v;
     if (m_config->lookupValue(key.c_str(), v)) {
         path = v;

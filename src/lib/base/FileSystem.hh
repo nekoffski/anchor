@@ -25,6 +25,8 @@ class Path {
     const Str& str() const;
     Path parent() const;
 
+    Str filename() const;
+
     static Path join(const Path& base, const Path& relative);
     static Path cwd();
 

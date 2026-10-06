@@ -15,7 +15,7 @@ class DiskBackupPlanRepository : public BackupPlanRepository {
 
     Result<void> valid() const;
 
-    std::vector<Str> list() const override;
+    std::vector<Path> list() const override;
     std::vector<BackupPlan> getAll() const override;
 
    private:

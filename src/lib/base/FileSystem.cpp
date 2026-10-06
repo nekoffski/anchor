@@ -157,6 +157,10 @@ Path Path::parent() const {
     return Path{parentPath.string()};
 }
 
+Str Path::filename() const {
+    return fs::path(m_path).filename().replace_extension("").string();
+}
+
 Path Path::join(const Path& base, const Path& relative) {
     return Path{fs::path(base.str()) / fs::path(relative.str())};
 }
