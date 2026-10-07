@@ -24,6 +24,9 @@ class LibconfigReader : public NonCopyable {
     bool lookup(const Str& key, u32& value) const;
     bool lookup(const Str& key, Path& path) const;
 
+    bool lookup(const Str& key, std::vector<Str>& value) const;
+    bool lookup(const Str& key, std::vector<Path>& value) const;
+
     template <typename T>
     Result<T> lookup(const Str& key) const {
         T value;

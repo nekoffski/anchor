@@ -30,6 +30,7 @@ void BackupServiceRunner::acceptRequest(Request request) {
             },
             [this](const TriggerBackupRequest& req) {
                 log::debug("Received backup request: {}", req.name);
+                m_service.triggerBackup(req.name);
             }
         },
         request

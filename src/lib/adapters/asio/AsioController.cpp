@@ -15,6 +15,14 @@ std::unique_ptr<proto::Message> anchor::AsioController::handle(
             });
         }
         return std::make_unique<proto::AckResponse>();
+    } else if (const auto* req = message.as<proto::TriggerBackupRequest>()) {
+        if (not m_sender.send(TriggerBackupRequest{req->backupName()})) {
+            return std::make_unique<proto::ErrorResponse>(Error{
+                ErrorCode::connectionFailure,
+                "Failed to send request, server is closing"
+            });
+        }
+        return std::make_unique<proto::AckResponse>();
     }
 
     return std::make_unique<proto::ErrorResponse>(

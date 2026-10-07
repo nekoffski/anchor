@@ -7,33 +7,6 @@
 
 namespace anchor {
 
-Result<SnapshotConfig> parseSnapshotConfig(const LibconfigReader& reader) {
-    auto snapshotTypeStr = reader.lookup<Str>("settings.snapshot.type");
-
-    if (not snapshotTypeStr) {
-        return Error::unexpected(snapshotTypeStr.error());
-    }
-
-    auto snapshotType = snapshotTypeFromStr(snapshotTypeStr.value());
-
-    if (not snapshotType) {
-        return Error::unexpected(snapshotType.error());
-    }
-
-    auto destinationStr = reader.lookup<Str>("settings.snapshot.destination");
-
-    if (not destinationStr) {
-        return Error::unexpected(destinationStr.error());
-    }
-
-    auto destination = Destination::fromStr(destinationStr.value());
-    if (not destination) {
-        return Error::unexpected(destination.error());
-    }
-
-    return SnapshotConfig{.type = *snapshotType, .destination = *destination};
-}
-
 Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
     auto reader = LibconfigReader::create(path, fs);
 
@@ -44,13 +17,30 @@ Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
     BackupPlan plan;
     plan.name = path.filename();
 
-    auto snapshotConfig = parseSnapshotConfig(*reader);
-
-    if (not snapshotConfig) {
-        return Error::unexpected(snapshotConfig.error());
+    auto destinationStr = reader->lookup<Str>("settings.destination");
+    if (not destinationStr) {
+        return Error::unexpected(destinationStr.error());
     }
 
-    plan.snapshot = std::move(*snapshotConfig);
+    auto destination = Destination::fromStr(destinationStr.value());
+    if (not destination) {
+        return Error::unexpected(destination.error());
+    }
+    plan.destination = *destination;
+
+    auto archiveTypeStr = reader->lookup<Str>("settings.archive");
+    if (not archiveTypeStr) {
+        return Error::unexpected(archiveTypeStr.error());
+    }
+
+    auto archiveType = archiveTypeFromStr(archiveTypeStr.value());
+    if (not archiveType) {
+        return Error::unexpected(archiveType.error());
+    }
+    plan.archiveType = *archiveType;
+
+    LOOKUP_FIELD(*reader, "filters", plan.filters);
+
     return plan;
 }
 

@@ -55,6 +55,35 @@ bool LibconfigReader::lookup(const Str& key, Path& path) const {
     return false;
 }
 
+bool LibconfigReader::lookup(const Str& key, std::vector<Str>& value) const {
+    auto& group = m_config->lookup(key.c_str());
+
+    if (not group.isList()) {
+        return false;
+    }
+
+    value.clear();
+    for (int i = 0; i < group.getLength(); ++i) {
+        value.push_back(group[i].c_str());
+    }
+    return true;
+}
+
+bool LibconfigReader::lookup(const Str& key, std::vector<Path>& value) const {
+    std::vector<Str> strValues;
+
+    if (not lookup(key, strValues)) {
+        return false;
+    }
+
+    value.clear();
+    value.reserve(strValues.size());
+    for (const auto& str : strValues) {
+        value.push_back(Path{str});
+    }
+    return true;
+}
+
 LibconfigReader::LibconfigReader(std::unique_ptr<libconfig::Config> config)
     : m_config(std::move(config)) {}
 

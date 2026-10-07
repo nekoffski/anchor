@@ -1,6 +1,8 @@
 
 #include "adapters/asio/AsioServer.hh"
 #include "adapters/backup/DiskBackupPlanRepository.hh"
+#include "adapters/backup/SnapshotStores.hh"
+#include "adapters/backup/Snapshotters.hh"
 #include "base/Functional.hh"
 #include "base/Log.hh"
 #include "base/Unwrap.hh"
@@ -27,7 +29,6 @@ int main(int argc, const char** argv) {
 
     FileSystem fs;
     SignalHandler signals;
-
     RequestQueue requestQueue;
 
     DiskBackupPlanRepository backupPlanRepository{cfg.paths.backupPlans, fs};
@@ -37,7 +38,15 @@ int main(int argc, const char** argv) {
     AsioServer server{cfg, controller};
     server.start();
 
-    BackupService backupService{cfg, backupPlanRepository};
+    Snapshotters snapshotters;
+    snapshotters.add<DirectorySnapshotter>(ArchiveType::directory, fs);
+
+    SnapshotStores snapshotStores;
+    snapshotStores.add<LocalSnapshotStore>(DestinationType::local, fs);
+
+    Ports ports{backupPlanRepository, snapshotters, snapshotStores};
+
+    BackupService backupService{cfg, fs, ports};
     BackupServiceRunner backupServiceRunner{
         backupService, RequestReceiver{requestQueue}
     };
