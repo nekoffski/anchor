@@ -26,6 +26,10 @@ void BackupJob::start() {
         log::error("Failed to create workspace directory: '{}'", res.error());
         return;
     }
+
+    auto res =
+        m_snapshotter.snapshot(m_backup.name, m_backup.filters, workspacePath);
+
     // DEFER { m_fs.remove(workspacePath); };
 }
 

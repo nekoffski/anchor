@@ -50,7 +50,7 @@ RegionTimer::RegionTimer(std::string name, ProfilerEvents& events)
     m_events.push_back({
         .type = ProfilerEvent::Type::begin,
         .name = m_name,
-        .timestamp = Clock::now(),
+        .timestamp = std::chrono::steady_clock::now(),
     });
 }
 
@@ -58,7 +58,7 @@ RegionTimer::~RegionTimer() {
     m_events.push_back({
         .type = ProfilerEvent::Type::end,
         .name = m_name,
-        .timestamp = Clock::now(),
+        .timestamp = std::chrono::steady_clock::now(),
     });
 }
 

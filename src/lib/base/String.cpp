@@ -2,14 +2,12 @@
 
 namespace anchor {
 
-std::vector<std::string> split(
-    const std::string& input, const std::string& separator
-) {
-    std::vector<std::string> result;
+std::vector<Str> split(const Str& input, const Str& separator) {
+    std::vector<Str> result;
     u64 start = 0;
     u64 end;
 
-    while ((end = input.find(separator, start)) != std::string::npos) {
+    while ((end = input.find(separator, start)) != Str::npos) {
         result.push_back(input.substr(start, end - start));
         start = end + separator.length();
     }
@@ -17,8 +15,8 @@ std::vector<std::string> split(
     return result;
 }
 
-std::string toBinaryString(CBytesView bytes) {
-    std::string result;
+Str toBinaryString(CBytesView bytes) {
+    Str result;
     result.reserve(bytes.size() * 8);
     for (const auto byte : bytes) {
         result += std::bitset<8>(byte).to_string();
@@ -26,8 +24,8 @@ std::string toBinaryString(CBytesView bytes) {
     return result;
 }
 
-std::string toHexString(CBytesView bytes) {
-    std::string result;
+Str toHexString(CBytesView bytes) {
+    Str result;
     result.reserve(bytes.size() * 2);
     for (const auto byte : bytes) {
         result += fmt::format("{:02x}", byte);
@@ -35,9 +33,9 @@ std::string toHexString(CBytesView bytes) {
     return result;
 }
 
-std::string hexDump(CBytesView bytes) {
-    std::string hex;
-    std::string ascii;
+Str hexDump(CBytesView bytes) {
+    Str hex;
+    Str ascii;
     hex.reserve(bytes.size() * 3);
     ascii.reserve(bytes.size());
     for (const auto byte : bytes) {
@@ -48,6 +46,24 @@ std::string hexDump(CBytesView bytes) {
         hex.pop_back();
     }
     return fmt::format("{} | {}", hex, ascii);
+}
+
+Str join(const std::vector<Str>& parts, const Str& separator) {
+    auto n = parts.size();
+
+    if (n == 0) {
+        return Str{};
+    } else if (n == 1) {
+        return parts[0];
+    }
+
+    Str out = parts[0];
+
+    for (u64 i = 1u; i < n; ++i) {
+        out += separator + parts[i];
+    }
+
+    return out;
 }
 
 }  // namespace anchor

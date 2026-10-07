@@ -15,7 +15,7 @@ class Snapshotter : public NonCopyable, public NonMovable {
     virtual ~Snapshotter() = default;
 
     virtual Result<SnapshotMetadata> snapshot(
-        std::span<const Filter> filters, const Path& workspace
+        const Str& name, std::span<const Filter> filters, const Path& workspace
     ) = 0;
 };
 

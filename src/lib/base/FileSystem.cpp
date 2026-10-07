@@ -4,6 +4,10 @@
 #include <fstream>
 #include <sstream>
 
+#include "Env.hh"
+#include "Functional.hh"
+#include "String.hh"
+
 namespace fs = std::filesystem;
 
 namespace anchor {
@@ -18,6 +22,24 @@ bool FileSystem::isDirectory(const Path& path) const {
 
 bool FileSystem::exists(const Path& path) const {
     return fs::exists(path.str());
+}
+
+Result<void> FileSystem::copyFile(const Path& from, const Path& to) const {
+    try {
+        if (not fs::copy_file(from.str(), to.str())) {
+            return Error::unexpected(
+                ErrorCode::fileSystemError,
+                "Failed to copy file from '{}' to '{}'", from.str(), to.str()
+            );
+        }
+    } catch (const std::exception& e) {
+        return Error::unexpected(
+            ErrorCode::fileSystemError,
+            "Failed to copy file from '{}' to '{}': {}", from.str(), to.str(),
+            e.what()
+        );
+    }
+    return {};
 }
 
 std::vector<Path> FileSystem::listFiles(const Path& path) const {
@@ -161,11 +183,29 @@ Str Path::filename() const {
     return fs::path(m_path).filename().replace_extension("").string();
 }
 
+Str Path::filenameWithExtension() const {
+    return fs::path(m_path).filename().string();
+}
+
 Path Path::join(const Path& base, const Path& relative) {
     return Path{fs::path(base.str()) / fs::path(relative.str())};
 }
 
 Path Path::cwd() { return Path{fs::current_path().string()}; }
+
+Path Path::resolveEnv() const {
+    auto path = m_path;
+    auto parts = split(path, "/");
+
+    for (auto& part : parts) {
+        if (part.starts_with("$")) {
+            auto envVar = part.substr(1);
+            auto envValue = getEnv(envVar).value_or("");
+            part = envValue;
+        }
+    }
+    return anchor::join(parts, "/");
+}
 
 bool Path::endsWith(const Str& suffix) const {
     if (suffix.size() > m_path.size()) [[unlikely]] {

@@ -26,9 +26,12 @@ class Path {
     Path parent() const;
 
     Str filename() const;
+    Str filenameWithExtension() const;
 
     static Path join(const Path& base, const Path& relative);
     static Path cwd();
+
+    Path resolveEnv() const;
 
     bool endsWith(const Str& suffix) const;
     void append(const Str& suffix);
@@ -44,6 +47,7 @@ class FileSystem : public NonCopyable, public NonMovable {
     virtual bool isFile(const Path& path) const;
     virtual bool isDirectory(const Path& path) const;
     virtual bool exists(const Path& path) const;
+    virtual Result<void> copyFile(const Path& from, const Path& to) const;
 
     virtual std::vector<Path> listFiles(const Path& path) const;
     virtual std::vector<Path> listDirectories(const Path& path) const;

@@ -12,9 +12,7 @@
 
 namespace anchor {
 
-std::vector<std::string> split(
-    const std::string& input, const std::string& separator
-);
+std::vector<Str> split(const Str& input, const Str& separator);
 
 template <u64 N>
 struct StringLiteral {
@@ -25,19 +23,21 @@ struct StringLiteral {
 };
 
 template <std::unsigned_integral T>
-std::string toBinaryString(T value) {
+Str toBinaryString(T value) {
     return std::bitset<sizeof(T) * 8>(value).to_string();
 }
 
-std::string toBinaryString(CBytesView bytes);
+Str toBinaryString(CBytesView bytes);
 
 template <std::unsigned_integral T>
-std::string toHexString(T value) {
+Str toHexString(T value) {
     return fmt::format("{:0{}x}", value, sizeof(T) * 2);
 }
 
-std::string toHexString(CBytesView bytes);
+Str toHexString(CBytesView bytes);
 
-std::string hexDump(CBytesView bytes);
+Str hexDump(CBytesView bytes);
+
+Str join(const std::vector<Str>& parts, const Str& separator);
 
 }  // namespace anchor

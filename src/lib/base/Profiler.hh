@@ -16,7 +16,7 @@ struct ProfilerEvent {
 
     Type type;
     std::string name;
-    Clock::time_point timestamp;
+    std::chrono::steady_clock::time_point timestamp;
 };
 
 using ProfilerEvents = std::vector<ProfilerEvent>;
