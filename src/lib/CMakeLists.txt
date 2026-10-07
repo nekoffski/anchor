@@ -25,7 +25,7 @@ add_library(anchor STATIC
     # -- core
     "core/services/BackupService.cpp"
     "core/services/BackupServiceRunner.cpp"
-    "core/services/job/BackupExecutor.cpp"
+    "core/services/job/BackupJobOrchestrator.cpp"
     "core/services/job/BackupJob.cpp"
     # -- domain
     "core/domain/Backup.cpp"

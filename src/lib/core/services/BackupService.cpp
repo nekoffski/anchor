@@ -9,7 +9,7 @@ BackupService::BackupService(
 )
     : m_cfg(cfg),
       m_ports(ports),
-      m_executor(
+      m_orchestrator(
           fs, cfg.paths.workspace, m_ports.snapshotStores(),
           m_ports.snapshotters()
       ) {
@@ -30,7 +30,7 @@ void BackupService::triggerBackup(const Str& name) {
 
     const auto& backup = m_backups[name];
 
-    if (auto status = m_executor.start(backup.plan); status) {
+    if (auto status = m_orchestrator.start(backup.plan); status) {
         m_activeJobs[name] = std::move(status.value());
     } else {
         log::error("Failed to start backup: '{}'", name);

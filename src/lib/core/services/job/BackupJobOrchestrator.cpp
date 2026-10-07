@@ -1,8 +1,8 @@
-#include "BackupExecutor.hh"
+#include "BackupJobOrchestrator.hh"
 
 namespace anchor {
 
-BackupExecutor::BackupExecutor(
+BackupJobOrchestrator::BackupJobOrchestrator(
     const FileSystem& m_fs, const Path& workspace,
     SnapshotStores& snapshotStores, Snapshotters& snapshotters
 )
@@ -11,7 +11,7 @@ BackupExecutor::BackupExecutor(
       m_snapshotStores(snapshotStores),
       m_snapshotters(snapshotters) {}
 
-Result<std::shared_ptr<BackupJobStatus>> BackupExecutor::start(
+Result<std::shared_ptr<BackupJobStatus>> BackupJobOrchestrator::start(
     const BackupPlan& backup
 ) {
     auto* snapshotter = m_snapshotters.get(backup.archiveType);

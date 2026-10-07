@@ -8,9 +8,9 @@
 
 namespace anchor {
 
-class BackupExecutor : public NonMovable, public NonCopyable {
+class BackupJobOrchestrator : public NonMovable, public NonCopyable {
    public:
-    explicit BackupExecutor(
+    explicit BackupJobOrchestrator(
         const FileSystem& m_fs, const Path& workspace,
         SnapshotStores& SnapshotStores, Snapshotters& snapshotters
     );

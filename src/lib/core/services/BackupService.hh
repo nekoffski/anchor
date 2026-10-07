@@ -5,7 +5,7 @@
 #include "base/Core.hh"
 #include "core/domain/Backup.hh"
 #include "core/ports/Ports.hh"
-#include "job/BackupExecutor.hh"
+#include "job/BackupJobOrchestrator.hh"
 
 namespace anchor {
 
@@ -20,7 +20,7 @@ class BackupService : public NonCopyable, public NonMovable {
    private:
     Config m_cfg;
     Ports& m_ports;
-    BackupExecutor m_executor;
+    BackupJobOrchestrator m_orchestrator;
 
     std::unordered_map<Str, std::shared_ptr<BackupJobStatus>> m_activeJobs;
     std::unordered_map<Str, Backup> m_backups;
