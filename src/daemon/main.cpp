@@ -1,6 +1,7 @@
 
 #include "adapters/asio/AsioServer.hh"
 #include "adapters/backup/DirectorySnapshotter.hh"
+#include "adapters/backup/InMemoryBackupRunRepo.hh"
 #include "adapters/backup/OnDiskBackupPlanRepo.hh"
 #include "adapters/backup/OnDiskSnapshotStore.hh"
 #include "adapters/executors/InlineExecutor.hh"
@@ -32,8 +33,8 @@ int main(int argc, const char** argv) {
     SignalHandler signals;
     RequestQueue requestQueue;
 
-    OnDiskBackupPlanRepo BackupPlanRepo{cfg.paths.backupPlans, fs};
-    log::expect(BackupPlanRepo.valid());
+    OnDiskBackupPlanRepo backupPlanRepo{cfg.paths.backupPlans, fs};
+    log::expect(backupPlanRepo.valid());
 
     AsioController controller{RequestSender{requestQueue}};
     AsioServer server{cfg, controller};
@@ -43,10 +44,14 @@ int main(int argc, const char** argv) {
     snapshotters.add<DirectorySnapshotter>(ArchiveType::directory, fs);
 
     SnapshotStores snapshotStores;
-    snapshotStores.add<OnDiskSnapshotStore>(DestinationType::local, fs);
+    snapshotStores.add<OnDiskSnapshotStore>(LocationType::local, fs);
+
+    InMemoryBackupRunRepo backupRunRepo;
 
     InlineExecutor executor;
-    Ports ports{BackupPlanRepo, snapshotters, snapshotStores, executor};
+    Ports ports{
+        backupRunRepo, backupPlanRepo, snapshotters, snapshotStores, executor
+    };
 
     BackupService backupService{cfg, fs, ports};
     BackupServiceRunner backupServiceRunner{

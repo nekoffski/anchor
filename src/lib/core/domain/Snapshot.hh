@@ -1,12 +1,13 @@
 #pragma once
 
+#include "Location.hh"
 #include "base/Core.hh"
 
 namespace anchor {
 
 struct SnapshotMetadata {
     Str name;
-    u64 size;
+    Location location;
 };
 
 }  // namespace anchor

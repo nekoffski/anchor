@@ -14,4 +14,14 @@ class BackupPlanRepo : public NonCopyable, public NonMovable {
     virtual std::vector<BackupPlan> getAll() const = 0;
 };
 
+class BackupRunRepo : public NonCopyable, public NonMovable {
+   public:
+    virtual ~BackupRunRepo() = default;
+
+    virtual bool has(const Str& backupName) const = 0;
+    virtual Opt<BackupRunStatus> get(const Str& backupName) const = 0;
+    virtual void put(const Str& backupName, const BackupRunStatus& status) = 0;
+    virtual void remove(const Str& backupName) = 0;
+};
+
 }  // namespace anchor

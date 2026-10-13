@@ -2,24 +2,12 @@
 
 #include <fmt/core.h>
 
+#include "Location.hh"
 #include "base/Concepts.hh"
 #include "base/Core.hh"
 #include "base/FileSystem.hh"
 
 namespace anchor {
-
-enum class DestinationType { local, s3 };
-
-Result<DestinationType> destinationTypeFromStr(const Str& str);
-Str destinationTypeToStr(DestinationType type);
-
-struct Destination {
-    DestinationType type;
-    Str path;
-
-    static Result<Destination> fromStr(const Str& str);
-    Str str() const;
-};
 
 enum class ArchiveType { directory, zip, rar };
 
@@ -31,17 +19,28 @@ using Filter = Path;
 struct BackupPlan {
     Str name;
     ArchiveType archiveType;
-    Destination destination;
+    Location destination;
     std::vector<Filter> filters;
 };
 
-enum class BackupStatus { ready, inProgress, failed };
-Str backupStatusToString(BackupStatus status);
+enum class BackupRunState {
+    starting,
+    snapshotting,
+    uploading,
+    completed,
+    failed
+};
+Str backupRunStateToString(BackupRunState state);
+
+struct BackupRunStatus {
+    BackupRunState state;
+    Opt<Error> error;
+};
 
 struct Backup {
     BackupPlan plan;
-    BackupStatus status{BackupStatus::ready};
     bool enabled{true};
+    // snapshots etc..
 };
 
 }  // namespace anchor

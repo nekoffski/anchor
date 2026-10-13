@@ -9,9 +9,7 @@ class DirectorySnapshotter : public Snapshotter {
    public:
     explicit DirectorySnapshotter(const FileSystem& fs);
 
-    Result<SnapshotMetadata> snapshot(
-        const Str& name, std::span<const Filter> filters, const Path& workspace
-    ) override;
+    Result<SnapshotMetadata> snapshot(const SnapshotArgs& args) override;
 
    private:
     Str newSnapshotName(const Str& backupName);

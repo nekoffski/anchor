@@ -48,10 +48,14 @@ class FileSystem : public NonCopyable, public NonMovable {
     virtual bool isDirectory(const Path& path) const;
     virtual bool exists(const Path& path) const;
     virtual Result<void> copyFile(const Path& from, const Path& to) const;
+    virtual Result<void> copyDirectoryRecursive(
+        const Path& from, const Path& to
+    ) const;
 
     virtual std::vector<Path> listFiles(const Path& path) const;
     virtual std::vector<Path> listDirectories(const Path& path) const;
     virtual Result<void> remove(const Path& path) const;
+    virtual Result<void> removeAll(const Path& path) const;
     virtual Result<void> touch(const Path& path) const;
     virtual Result<Path> createDirectory(const Path& path) const;
 

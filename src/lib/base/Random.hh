@@ -20,4 +20,14 @@ class RandomEngine : public Singleton<RandomEngine> {
     uuids::uuid_random_generator m_uuidGen;
 };
 
+class WithUuid : public virtual NonCopyable, public virtual NonMovable {
+   public:
+    explicit WithUuid();
+
+    const Uuid& uuid() const;
+
+   private:
+    Uuid m_uuid;
+};
+
 }  // namespace anchor

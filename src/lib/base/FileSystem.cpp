@@ -42,6 +42,21 @@ Result<void> FileSystem::copyFile(const Path& from, const Path& to) const {
     return {};
 }
 
+Result<void> FileSystem::copyDirectoryRecursive(
+    const Path& from, const Path& to
+) const {
+    try {
+        fs::copy(from.str(), to.str(), fs::copy_options::recursive);
+    } catch (const std::exception& e) {
+        return Error::unexpected(
+            ErrorCode::fileSystemError,
+            "Failed to copy directory from '{}' to '{}': {}", from.str(),
+            to.str(), e.what()
+        );
+    }
+    return {};
+}
+
 std::vector<Path> FileSystem::listFiles(const Path& path) const {
     std::vector<Path> files;
     for (const auto& entry : fs::directory_iterator(path.str())) {
@@ -67,7 +82,20 @@ Result<void> FileSystem::remove(const Path& path) const {
     fs::remove(path.str(), ec);
     if (ec) {
         return Error::unexpected(
-            ErrorCode::fileSystemError, "Failed to remove file '{}'", path.str()
+            ErrorCode::fileSystemError, "Failed to remove '{}' - {}",
+            path.str(), ec.message()
+        );
+    }
+    return {};
+}
+
+Result<void> FileSystem::removeAll(const Path& path) const {
+    std::error_code ec;
+    fs::remove_all(path.str(), ec);
+    if (ec) {
+        return Error::unexpected(
+            ErrorCode::fileSystemError, "Failed to remove all from '{}' - {}",
+            path.str(), ec.message()
         );
     }
     return {};

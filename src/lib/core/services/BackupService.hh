@@ -20,6 +20,7 @@ class BackupService : public NonCopyable, public NonMovable {
     void readPlans();
 
     Config m_cfg;
+    const FileSystem& m_fs;
     Ports m_ports;
 
     // std::unordered_map<Str, std::shared_ptr<BackupJobStatus>> m_activeJobs;

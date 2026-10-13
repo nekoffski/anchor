@@ -11,22 +11,30 @@
 
 namespace anchor {
 
+struct SnapshotArgs {
+    const Str& name;
+    std::span<const Filter> filters;
+    const Path& workspace;
+};
+
 class Snapshotter : public NonCopyable, public NonMovable {
    public:
     virtual ~Snapshotter() = default;
 
-    virtual Result<SnapshotMetadata> snapshot(
-        const Str& name, std::span<const Filter> filters, const Path& workspace
-    ) = 0;
+    virtual Result<SnapshotMetadata> snapshot(const SnapshotArgs& args) = 0;
 };
 
 using Snapshotters = InterfaceMap<ArchiveType, Snapshotter>;
 
 class SnapshotStore : public NonCopyable, public NonMovable {
    public:
-    ~SnapshotStore() = default;
+    virtual ~SnapshotStore() = default;
+
+    virtual Result<SnapshotMetadata> put(
+        const SnapshotMetadata& metadata, const Location& destination
+    ) = 0;
 };
 
-using SnapshotStores = InterfaceMap<DestinationType, SnapshotStore>;
+using SnapshotStores = InterfaceMap<LocationType, SnapshotStore>;
 
 }  // namespace anchor

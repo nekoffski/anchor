@@ -23,8 +23,8 @@ class InterfaceMap : public NonCopyable, public NonMovable {
     }
 
     Interface* get(const Key& key) {
-        if (auto it = m_interfaces.find(key); it != m_interfaces.end()) {
-            return it->second.get();
+        if (auto it = m_interfaces.find(key); it) {
+            return it->get();
         }
         return nullptr;
     }

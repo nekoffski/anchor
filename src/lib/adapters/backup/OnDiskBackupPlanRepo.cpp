@@ -22,7 +22,7 @@ Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
         return Error::unexpected(destinationStr.error());
     }
 
-    auto destination = Destination::fromStr(destinationStr.value());
+    auto destination = Location::fromStr(destinationStr.value());
     if (not destination) {
         return Error::unexpected(destination.error());
     }

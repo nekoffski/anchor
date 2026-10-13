@@ -7,8 +7,10 @@ namespace anchor {
 DirectorySnapshotter::DirectorySnapshotter(const FileSystem& fs) : m_fs(fs) {}
 
 Result<SnapshotMetadata> DirectorySnapshotter::snapshot(
-    const Str& name, std::span<const Filter> filters, const Path& workspace
+    const SnapshotArgs& args
 ) {
+    const auto& [name, filters, workspace] = args;
+
     const auto snapshotName = newSnapshotName(name);
     const auto path = Path::join(workspace, snapshotName);
     m_fs.createDirectory(path);
@@ -24,7 +26,12 @@ Result<SnapshotMetadata> DirectorySnapshotter::snapshot(
             );
         }
     }
-    return {};
+
+    SnapshotMetadata metadata{
+        .name = snapshotName, .location = Location::local(path.str())
+    };
+
+    return metadata;
 }
 
 Str DirectorySnapshotter::newSnapshotName(const Str& backupName) {
