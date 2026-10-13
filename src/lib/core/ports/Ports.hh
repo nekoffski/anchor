@@ -1,29 +1,32 @@
 #pragma once
 
-#include "BackupPlanRepository.hh"
-#include "SnapshotStore.hh"
-#include "Snapshotter.hh"
+#include "Backup.hh"
+#include "Executor.hh"
+#include "Snapshot.hh"
 
 namespace anchor {
 
 class Ports {
    public:
     explicit Ports(
-        BackupPlanRepository& backupPlanRepository, Snapshotters& snapshotters,
-        SnapshotStores& snapshotStores
+        BackupPlanRepo& BackupPlanRepo, Snapshotters& snapshotters,
+        SnapshotStores& snapshotStores, Executor& executor
     )
-        : m_backupPlanRepository(backupPlanRepository),
+        : m_BackupPlanRepo(BackupPlanRepo),
           m_snapshotters(snapshotters),
-          m_snapshotStores(snapshotStores) {}
+          m_snapshotStores(snapshotStores),
+          m_executor(executor) {}
 
-    BackupPlanRepository& planRepo() { return m_backupPlanRepository; }
+    BackupPlanRepo& planRepo() { return m_BackupPlanRepo; }
     SnapshotStores& snapshotStores() { return m_snapshotStores; }
     Snapshotters& snapshotters() { return m_snapshotters; }
+    Executor& executor() { return m_executor; }
 
    private:
-    BackupPlanRepository& m_backupPlanRepository;
+    BackupPlanRepo& m_BackupPlanRepo;
     Snapshotters& m_snapshotters;
     SnapshotStores& m_snapshotStores;
+    Executor& m_executor;
 };
 
 }  // namespace anchor

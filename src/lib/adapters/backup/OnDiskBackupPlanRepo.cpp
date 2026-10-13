@@ -1,4 +1,4 @@
-#include "DiskBackupPlanRepository.hh"
+#include "OnDiskBackupPlanRepo.hh"
 
 #include <ranges>
 
@@ -44,12 +44,12 @@ Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
     return plan;
 }
 
-DiskBackupPlanRepository::DiskBackupPlanRepository(
+OnDiskBackupPlanRepo::OnDiskBackupPlanRepo(
     const Path& plansPath, const FileSystem& fs
 )
     : m_plansPath(plansPath), m_fs(fs) {}
 
-Result<void> DiskBackupPlanRepository::valid() const {
+Result<void> OnDiskBackupPlanRepo::valid() const {
     if (not m_fs.isDirectory(m_plansPath)) {
         return Error::unexpected(
             ErrorCode::invalidArgument, "Plans path is not a directory"
@@ -58,7 +58,7 @@ Result<void> DiskBackupPlanRepository::valid() const {
     return {};
 }
 
-std::vector<Path> DiskBackupPlanRepository::list() const {
+std::vector<Path> OnDiskBackupPlanRepo::list() const {
     static auto filterNonConf = [](const Path& p) {
         return p.endsWith(".conf");
     };
@@ -67,7 +67,7 @@ std::vector<Path> DiskBackupPlanRepository::list() const {
            std::ranges::to<std::vector>();
 }
 
-std::vector<BackupPlan> DiskBackupPlanRepository::getAll() const {
+std::vector<BackupPlan> OnDiskBackupPlanRepo::getAll() const {
     const auto& paths = list();
     std::vector<BackupPlan> plans;
     plans.reserve(paths.size());

@@ -6,9 +6,9 @@
 
 namespace anchor {
 
-class BackupPlanRepository : public NonCopyable, public NonMovable {
+class BackupPlanRepo : public NonCopyable, public NonMovable {
    public:
-    virtual ~BackupPlanRepository() = default;
+    virtual ~BackupPlanRepo() = default;
 
     virtual std::vector<Path> list() const = 0;
     virtual std::vector<BackupPlan> getAll() const = 0;

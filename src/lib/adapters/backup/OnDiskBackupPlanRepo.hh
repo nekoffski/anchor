@@ -3,15 +3,13 @@
 #include "base/Core.hh"
 #include "base/Error.hh"
 #include "base/FileSystem.hh"
-#include "core/ports/BackupPlanRepository.hh"
+#include "core/ports/Backup.hh"
 
 namespace anchor {
 
-class DiskBackupPlanRepository : public BackupPlanRepository {
+class OnDiskBackupPlanRepo : public BackupPlanRepo {
    public:
-    explicit DiskBackupPlanRepository(
-        const Path& plansPath, const FileSystem& fs
-    );
+    explicit OnDiskBackupPlanRepo(const Path& plansPath, const FileSystem& fs);
 
     Result<void> valid() const;
 

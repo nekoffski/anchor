@@ -21,12 +21,15 @@ add_library(anchor STATIC
     "adapters/asio/AsioServer.cpp"
     "adapters/asio/AsioSession.cpp"
     "adapters/asio/AsioController.cpp"
-    "adapters/backup/DiskBackupPlanRepository.cpp"
+    "adapters/backup/DirectorySnapshotter.cpp"
+    "adapters/backup/InMemoryBackupPlanRepo.cpp"
+    "adapters/backup/InMemoryPendingBackupsRepo.cpp"
+    "adapters/backup/OnDiskBackupPlanRepo.cpp"
+    "adapters/backup/OnDiskSnapshotStore.cpp"
     # -- core
     "core/services/BackupService.cpp"
     "core/services/BackupServiceRunner.cpp"
-    "core/services/job/BackupJobOrchestrator.cpp"
-    "core/services/job/BackupJob.cpp"
+    # "core/services/job/BackupJob.cpp"
     # -- domain
     "core/domain/Backup.cpp"
 )

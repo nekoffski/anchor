@@ -5,24 +5,24 @@
 #include "base/Core.hh"
 #include "core/domain/Backup.hh"
 #include "core/ports/Ports.hh"
-#include "job/BackupJobOrchestrator.hh"
 
 namespace anchor {
 
 class BackupService : public NonCopyable, public NonMovable {
    public:
     explicit BackupService(
-        const Config& cfg, const FileSystem& fs, Ports& ports
+        const Config& cfg, const FileSystem& fs, Ports ports
     );
 
     void triggerBackup(const Str& name);
 
    private:
-    Config m_cfg;
-    Ports& m_ports;
-    BackupJobOrchestrator m_orchestrator;
+    void readPlans();
 
-    std::unordered_map<Str, std::shared_ptr<BackupJobStatus>> m_activeJobs;
+    Config m_cfg;
+    Ports m_ports;
+
+    // std::unordered_map<Str, std::shared_ptr<BackupJobStatus>> m_activeJobs;
     std::unordered_map<Str, Backup> m_backups;
 };
 

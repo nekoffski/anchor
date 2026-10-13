@@ -5,21 +5,10 @@
 namespace anchor {
 
 BackupService::BackupService(
-    const Config& cfg, const FileSystem& fs, Ports& ports
+    const Config& cfg, const FileSystem& fs, Ports ports
 )
-    : m_cfg(cfg),
-      m_ports(ports),
-      m_orchestrator(
-          fs, cfg.paths.workspace, m_ports.snapshotStores(),
-          m_ports.snapshotters()
-      ) {
-    for (const auto& plan : m_ports.planRepo().getAll()) {
-        log::info("Loaded backup plan: '{}'", plan.name);
-        for (const auto& filter : plan.filters) {
-            log::info("\tFilter: '{}'", filter.str());
-        }
-        m_backups[plan.name] = Backup{plan};
-    }
+    : m_cfg(cfg), m_ports(ports) {
+    readPlans();
 }
 
 void BackupService::triggerBackup(const Str& name) {
@@ -28,12 +17,22 @@ void BackupService::triggerBackup(const Str& name) {
         return;
     }
 
-    const auto& backup = m_backups[name];
+    // const auto& backup = m_backups[name];
 
-    if (auto status = m_orchestrator.start(backup.plan); status) {
-        m_activeJobs[name] = std::move(status.value());
-    } else {
-        log::error("Failed to start backup: '{}'", name);
+    // if (auto status = m_orchestrator.start(backup.plan); status) {
+    //     m_activeJobs[name] = std::move(status.value());
+    // } else {
+    //     log::error("Failed to start backup: '{}'", name);
+    // }
+}
+
+void BackupService::readPlans() {
+    for (const auto& plan : m_ports.planRepo().getAll()) {
+        log::info("Loaded backup plan: '{}'", plan.name);
+        for (const auto& filter : plan.filters) {
+            log::info("\tFilter: '{}'", filter.str());
+        }
+        m_backups[plan.name] = Backup{plan};
     }
 }
 
