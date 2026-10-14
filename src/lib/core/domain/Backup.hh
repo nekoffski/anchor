@@ -9,7 +9,7 @@
 
 namespace anchor {
 
-enum class ArchiveType { directory, zip, rar };
+enum class ArchiveType { directory, zip, tgz };
 
 Result<ArchiveType> archiveTypeFromStr(const Str& str);
 Str archiveTypeToStr(ArchiveType type);

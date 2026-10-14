@@ -14,6 +14,8 @@ class InMemoryBackupRunRepo : public BackupRunRepo {
     Opt<BackupRunStatus> get(const Str& backupName) const override;
     void put(const Str& backupName, const BackupRunStatus& status) override;
     void remove(const Str& backupName) override;
+    void remove(std::span<const Str>) override;
+    void forEach(Callback c) const override;
 
    private:
     std::unordered_map<Str, BackupRunStatus> m_backupRuns;

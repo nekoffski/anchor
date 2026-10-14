@@ -22,10 +22,10 @@ add_library(anchor STATIC
     "adapters/asio/AsioSession.cpp"
     "adapters/asio/AsioController.cpp"
     "adapters/backup/DirectorySnapshotter.cpp"
-    "adapters/backup/InMemoryBackupPlanRepo.cpp"
     "adapters/backup/InMemoryBackupRunRepo.cpp"
     "adapters/backup/OnDiskBackupPlanRepo.cpp"
     "adapters/backup/OnDiskSnapshotStore.cpp"
+    "adapters/backup/ArchiveSnapshotter.cpp"
     # -- core
     "core/services/BackupService.cpp"
     "core/services/BackupServiceRunner.cpp"
@@ -46,6 +46,7 @@ find_package(GTest CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(asio CONFIG REQUIRED)
 find_package(libconfig CONFIG REQUIRED)
+find_package(LibArchive CONFIG REQUIRED)
 
 target_link_libraries(anchor
     PUBLIC
@@ -55,6 +56,7 @@ target_link_libraries(anchor
         nlohmann_json::nlohmann_json
         asio::asio
         libconfig::libconfig
+        LibArchive::LibArchive
 )
 
 if (ANCHOR_ENABLE_PROFILING)

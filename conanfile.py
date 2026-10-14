@@ -10,6 +10,7 @@ class AnchorConan(ConanFile):
     default_options = {
         "*:fPIC": True,
         "*:shared": False,
+        "libarchive/*:with_zlib": True,
     }
 
     def requirements(self):
@@ -20,6 +21,7 @@ class AnchorConan(ConanFile):
         self.requires("nlohmann_json/3.12.0")
         self.requires("asio/1.30.2")
         self.requires("libconfig/1.7.3")
+        self.requires("libarchive/3.8.7")
 
     def build_requirements(self):
         self.test_requires("gtest/1.15.0")

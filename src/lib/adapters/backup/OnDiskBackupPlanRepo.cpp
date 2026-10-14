@@ -67,16 +67,14 @@ std::vector<Path> OnDiskBackupPlanRepo::list() const {
            std::ranges::to<std::vector>();
 }
 
-std::vector<BackupPlan> OnDiskBackupPlanRepo::getAll() const {
+void OnDiskBackupPlanRepo::forEach(Callback callback) const {
     const auto& paths = list();
-    std::vector<BackupPlan> plans;
-    plans.reserve(paths.size());
 
     for (const auto& path : paths) {
         log::debug("Parsing backup plan: {}", path.str());
 
         if (auto plan = parseBackupPlan(path, m_fs); plan) {
-            plans.push_back(*plan);
+            callback(*plan);
         } else {
             log::error(
                 "Could not load backup plan: {} due to {}", path.str(),
@@ -84,8 +82,6 @@ std::vector<BackupPlan> OnDiskBackupPlanRepo::getAll() const {
             );
         }
     }
-
-    return plans;
 }
 
 }  // namespace anchor

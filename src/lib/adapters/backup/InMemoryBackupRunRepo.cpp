@@ -27,4 +27,18 @@ void InMemoryBackupRunRepo::remove(const Str& backupName) {
     m_backupRuns.erase(backupName);
 }
 
+void InMemoryBackupRunRepo::remove(std::span<const Str> backupNames) {
+    std::unique_lock lk{m_mutex};
+    for (const auto& backupName : backupNames) {
+        m_backupRuns.erase(backupName);
+    }
+}
+
+void InMemoryBackupRunRepo::forEach(Callback c) const {
+    std::shared_lock lk{m_mutex};
+    for (const auto& [backupName, status] : m_backupRuns) {
+        c(backupName, status);
+    }
+}
+
 }  // namespace anchor

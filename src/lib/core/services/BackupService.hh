@@ -15,9 +15,11 @@ class BackupService : public NonCopyable, public NonMovable {
     );
 
     void triggerBackup(const Str& name);
+    void tick();
 
    private:
     void readPlans();
+    void scanBackupRuns();
 
     Config m_cfg;
     const FileSystem& m_fs;

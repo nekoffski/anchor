@@ -23,8 +23,8 @@ Result<ArchiveType> archiveTypeFromStr(const Str& str) {
         return ArchiveType::directory;
     } else if (str == "zip") {
         return ArchiveType::zip;
-    } else if (str == "rar") {
-        return ArchiveType::rar;
+    } else if (str == "tgz") {
+        return ArchiveType::tgz;
     }
     return Error::unexpected(
         ErrorCode::invalidArgument, "Invalid snapshot type: {}", str
@@ -37,8 +37,8 @@ Str archiveTypeToStr(ArchiveType type) {
             return "directory";
         case ArchiveType::zip:
             return "zip";
-        case ArchiveType::rar:
-            return "rar";
+        case ArchiveType::tgz:
+            return "tgz";
     }
     std::unreachable();
 }

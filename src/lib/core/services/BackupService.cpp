@@ -62,14 +62,32 @@ void BackupService::triggerBackup(const Str& name) {
     });
 }
 
+void BackupService::tick() {
+    scanBackupRuns();
+    // --
+}
+
 void BackupService::readPlans() {
-    for (const auto& plan : m_ports.planRepo().getAll()) {
+    m_ports.planRepo().forEach([&](const auto& plan) {
         log::info("Loaded backup plan: '{}'", plan.name);
         for (const auto& filter : plan.filters) {
             log::info("\tFilter: '{}'", filter.str());
         }
         m_backups[plan.name] = Backup{plan};
-    }
+    });
+}
+
+void BackupService::scanBackupRuns() {
+    auto& runRepo = m_ports.runRepo();
+    std::vector<Str> completedBackups;
+
+    runRepo.forEach([&](const auto& name, const auto& status) {
+        if (status.state == BackupRunState::completed) {
+            log::debug("Backup '{}' has completed.", name);
+            completedBackups.push_back(name);
+        }
+    });
+    runRepo.remove(completedBackups);
 }
 
 }  // namespace anchor
