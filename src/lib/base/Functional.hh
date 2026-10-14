@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "Concepts.hh"
+#include "Log.hh"
 #include "Macros.hh"
 
 namespace anchor {
@@ -25,8 +26,9 @@ class MoveOnlyFunction<ReturnType(ArgumentTypes...)> {
 
     template <typename Callable>
     struct CallableModel final : CallableBase {
-        explicit CallableModel(Callable&& callable)
-            : callable(std::forward<Callable>(callable)) {}
+        template <typename F>
+        explicit CallableModel(F&& callable)
+            : callable(std::forward<F>(callable)) {}
 
         ReturnType invoke(ArgumentTypes&&... arguments) override {
             if constexpr (std::is_void_v<ReturnType>) {
@@ -50,9 +52,9 @@ class MoveOnlyFunction<ReturnType(ArgumentTypes...)> {
     template <typename Callable>
         requires(
             not std::same_as<std::remove_cvref_t<Callable>, MoveOnlyFunction> &&
-            std::is_constructible_v<std::decay_t<Callable>, Callable &&> &&
             std::is_invocable_r_v<
-                ReturnType, std::decay_t<Callable>&, ArgumentTypes...>
+                ReturnType, std::decay_t<Callable>&, ArgumentTypes...> &&
+            std::is_constructible_v<std::decay_t<Callable>, Callable &&>
         )
     MoveOnlyFunction(Callable&& callable)
         : m_callable(
@@ -74,9 +76,9 @@ class MoveOnlyFunction<ReturnType(ArgumentTypes...)> {
     template <typename Callable>
         requires(
             not std::same_as<std::remove_cvref_t<Callable>, MoveOnlyFunction> &&
-            std::is_constructible_v<std::decay_t<Callable>, Callable &&> &&
             std::is_invocable_r_v<
-                ReturnType, std::decay_t<Callable>&, ArgumentTypes...>
+                ReturnType, std::decay_t<Callable>&, ArgumentTypes...> &&
+            std::is_constructible_v<std::decay_t<Callable>, Callable &&>
         )
     MoveOnlyFunction& operator=(Callable&& callable) {
         MoveOnlyFunction replacement(std::forward<Callable>(callable));
@@ -89,9 +91,7 @@ class MoveOnlyFunction<ReturnType(ArgumentTypes...)> {
     }
 
     ReturnType operator()(ArgumentTypes... arguments) const {
-        if (not m_callable) {
-            throw std::bad_function_call{};
-        }
+        log::expect(bool(m_callable), "Cannot invoke an empty function");
 
         if constexpr (std::is_void_v<ReturnType>) {
             m_callable->invoke(std::forward<ArgumentTypes>(arguments)...);

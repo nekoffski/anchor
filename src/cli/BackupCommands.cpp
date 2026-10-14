@@ -1,5 +1,9 @@
 #include "BackupCommands.hh"
 
+#include "proto/AckResponse.hh"
+#include "proto/ErrorResponse.hh"
+#include "proto/TriggerBackupRequest.hh"
+
 namespace anchor::cli {
 
 namespace {

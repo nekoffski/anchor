@@ -3,6 +3,9 @@
 namespace anchor {
 
 std::vector<Str> split(const Str& input, const Str& separator) {
+    if (separator.empty()) {
+        return {input};
+    }
     std::vector<Str> result;
     u64 start = 0;
     u64 end;

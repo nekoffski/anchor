@@ -58,19 +58,27 @@ Result<void> OnDiskBackupPlanRepo::valid() const {
     return {};
 }
 
-std::vector<Path> OnDiskBackupPlanRepo::list() const {
+Result<std::vector<Path>> OnDiskBackupPlanRepo::list() const {
     static auto filterNonConf = [](const Path& p) {
         return p.endsWith(".conf");
     };
 
-    return m_fs.listFiles(m_plansPath) | std::views::filter(filterNonConf) |
+    auto files = m_fs.listFiles(m_plansPath);
+    if (not files) {
+        return Error::unexpected(files.error());
+    }
+    return *files | std::views::filter(filterNonConf) |
            std::ranges::to<std::vector>();
 }
 
 void OnDiskBackupPlanRepo::forEach(Callback callback) const {
     const auto& paths = list();
+    if (not paths) {
+        log::error("Could not list backup plans: {}", paths.error());
+        return;
+    }
 
-    for (const auto& path : paths) {
+    for (const auto& path : *paths) {
         log::debug("Parsing backup plan: {}", path.str());
 
         if (auto plan = parseBackupPlan(path, m_fs); plan) {

@@ -1,5 +1,38 @@
 # Anchor
 
+## Unit tests
+
+Unit tests use GoogleTest and GoogleMock from the existing Conan dependencies.
+They live in `src/tests/lib`, mirroring the library's `base`, `core`, `adapters`,
+and `proto` modules. Root `tests/` is reserved for functional tests. Test files
+are listed explicitly in `src/tests/CMakeLists.txt`; shared fixtures and mocks
+stay inside the unit-test tree.
+
+```sh
+make bootstrap  # once, to select a supported compiler
+make test       # build Debug and run the unit tests with CTest
+```
+
+After building, run the existing suite or a selected component without
+reinstalling dependencies:
+
+```sh
+ctest --preset conan-debug --output-on-failure
+ctest --preset conan-debug -R 'BackupRunTest' --output-on-failure
+build/Debug/src/tests/anchor-tests --gtest_filter='Message.*'
+```
+
+CTest discovers individual cases and gives each a ten-second timeout and the
+`unit` label. Filesystem tests use private temporary directories; service and
+adapter failure cases use mocks. Tests cover utilities, configuration, domain
+conversions, protocol validation, queues, threading, profiling, repositories,
+snapshot creation/storage, and backup orchestration. Socket transport belongs
+in functional tests; the empty archive snapshotters and thread pool have no
+behavior to test yet.
+
+Set `-DBUILD_TESTING=OFF` when configuring CMake to omit the test executable and
+GoogleTest lookup. Tests are enabled by default.
+
 ## CLI
 
 `anchor` runs one command and exits. It connects to the local daemon on port
@@ -48,38 +81,42 @@ At service startup the launcher prepares these private user directories:
 The daemon runs with the workspace as its working directory. Output is appended
 to `anchord.log` and `anchord-error.log`; log rotation is not configured yet.
 Directories and logs are created with private permissions. Existing user data
-is preserved on restart, upgrade, and uninstall. An INI-style `server.conf` ships
+is preserved on restart, upgrade, and uninstall. A libconfig `server.conf` ships
 in the formula's `share/anchor` directory and is copied to
 `~/Library/Application Support/Anchor/config/server.conf` on first service
 startup. Existing configurations are preserved. The launcher passes its
-absolute path as the first argument to `anchord`; configuration parsing is
-not implemented yet.
+absolute path as the first argument to `anchord`.
 
 The packaged configuration contains:
 
 ```conf
+api = {
+    port = 4448;
+};
 paths = {
-    workspace_dir = ../workspace
-    backup_plans_dir = plans
-}
+    workspace = "../workspace";
+    backup_plans = "plans";
+};
 ```
 
-Relative paths are intended to resolve against the directory containing
+Relative paths resolve against the directory containing
 `server.conf`, not the daemon's working directory. These defaults identify the
 workspace and backup-plan directories above without embedding a username.
 New installations receive this file automatically. Existing files, including
 empty configurations from earlier installations, are preserved.
 
-`workspace_dir` holds durable state such as SQLite databases and other
-application files. `backup_plans_dir` holds the `.conf` files describing backup
+`paths.workspace` holds durable state such as SQLite databases and other
+application files. `paths.backup_plans` holds the `.conf` files describing backup
 plans. Backup data goes to the destinations specified by those plans, separately
 from Anchor's internal workspace.
 
 When upgrading an earlier installation, the launcher creates `config/plans`
-but preserves existing configuration and files. If `server.conf` still uses
-`backup_config_dir`, rename that setting to `backup_plans_dir`. Use `plans` for
-the new directory and move existing plan files there, or retain the old directory
-as the setting's value. Packaging does not automatically migrate existing plans.
+but preserves existing configuration and files. Update older `server.conf`
+files to the libconfig syntax above, renaming `workspace_dir` to `workspace`
+and `backup_config_dir` or `backup_plans_dir` to `backup_plans` in the `paths`
+group, and include `api.port`. Retain the old directory as the setting's value
+if needed. Packaging does not automatically migrate existing configurations
+or plans.
 
 For protected backup sources, grant the daemon Full Disk Access in System
 Settings > Privacy & Security. This does not grant access beyond the service

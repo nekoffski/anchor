@@ -52,8 +52,8 @@ class FileSystem : public NonCopyable, public NonMovable {
         const Path& from, const Path& to
     ) const;
 
-    virtual std::vector<Path> listFiles(const Path& path) const;
-    virtual std::vector<Path> listDirectories(const Path& path) const;
+    virtual Result<std::vector<Path>> listFiles(const Path& path) const;
+    virtual Result<std::vector<Path>> listDirectories(const Path& path) const;
     virtual Result<void> remove(const Path& path) const;
     virtual Result<void> removeAll(const Path& path) const;
     virtual Result<void> touch(const Path& path) const;

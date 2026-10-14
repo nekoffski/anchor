@@ -26,9 +26,8 @@ Result<LibconfigReader> LibconfigReader::create(
 }
 
 bool LibconfigReader::lookup(const Str& key, u16& value) const {
-    int v;
-    if (not m_config->lookupValue(key.c_str(), v) or v < 0 or
-        v > maxOf<u16>()) {
+    u32 v;
+    if (not lookup(key, v) or v > maxOf<u16>()) {
         return false;
     }
     value = static_cast<u16>(v);
@@ -36,14 +35,18 @@ bool LibconfigReader::lookup(const Str& key, u16& value) const {
 }
 
 bool LibconfigReader::lookup(const Str& key, u32& value) const {
-    unsigned int v;
-
-    if (m_config->lookupValue(key.c_str(), v)) {
-        value = static_cast<u32>(v);
-        return true;
+    int narrow;
+    long long v;
+    if (lookup(key, narrow)) {
+        v = narrow;
+    } else if (not lookup(key, v)) {
+        return false;
     }
-
-    return false;
+    if (v < 0 or v > maxOf<u32>()) {
+        return false;
+    }
+    value = static_cast<u32>(v);
+    return true;
 }
 
 bool LibconfigReader::lookup(const Str& key, Path& path) const {
@@ -56,17 +59,24 @@ bool LibconfigReader::lookup(const Str& key, Path& path) const {
 }
 
 bool LibconfigReader::lookup(const Str& key, std::vector<Str>& value) const {
-    auto& group = m_config->lookup(key.c_str());
-
-    if (not group.isList()) {
+    try {
+        auto& group = m_config->lookup(key.c_str());
+        if (not group.isList()) {
+            return false;
+        }
+        std::vector<Str> values;
+        values.reserve(group.getLength());
+        for (int i = 0; i < group.getLength(); ++i) {
+            if (group[i].getType() != libconfig::Setting::TypeString) {
+                return false;
+            }
+            values.emplace_back(group[i].c_str());
+        }
+        value = std::move(values);
+        return true;
+    } catch (const libconfig::ConfigException&) {
         return false;
     }
-
-    value.clear();
-    for (int i = 0; i < group.getLength(); ++i) {
-        value.push_back(group[i].c_str());
-    }
-    return true;
 }
 
 bool LibconfigReader::lookup(const Str& key, std::vector<Path>& value) const {

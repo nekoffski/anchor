@@ -1,5 +1,7 @@
 #include "Client.hh"
 
+#include "proto/ErrorResponse.hh"
+
 namespace anchor::cli {
 
 namespace {

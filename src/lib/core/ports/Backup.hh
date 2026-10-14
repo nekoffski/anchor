@@ -14,7 +14,7 @@ class BackupPlanRepo : public NonCopyable, public NonMovable {
    public:
     virtual ~BackupPlanRepo() = default;
 
-    virtual std::vector<Path> list() const = 0;
+    virtual Result<std::vector<Path>> list() const = 0;
     virtual void forEach(Callback c) const = 0;
 };
 

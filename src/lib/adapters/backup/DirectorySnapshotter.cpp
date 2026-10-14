@@ -13,7 +13,9 @@ Result<SnapshotMetadata> DirectorySnapshotter::snapshot(
 
     const auto snapshotName = newSnapshotName(name);
     const auto path = Path::join(workspace, snapshotName);
-    m_fs.createDirectory(path);
+    if (auto result = m_fs.createDirectory(path); not result) {
+        return Error::unexpected(result.error());
+    }
 
     for (const auto& filter : filters) {
         auto source = filter.resolveEnv();
@@ -24,6 +26,7 @@ Result<SnapshotMetadata> DirectorySnapshotter::snapshot(
                 "Failed to copy file from '{}' to '{}' - {}", source.str(),
                 destination.str(), result.error()
             );
+            return Error::unexpected(result.error());
         }
     }
 

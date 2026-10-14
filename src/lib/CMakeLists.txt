@@ -17,6 +17,10 @@ add_library(anchor STATIC
     "base/runtime/SignalHandler.cpp"
     # -- proto
     "proto/Message.cpp"
+    "proto/AckResponse.cpp"
+    "proto/DiagnosticRequest.cpp"
+    "proto/ErrorResponse.cpp"
+    "proto/TriggerBackupRequest.cpp"
     # -- adapters
     "adapters/asio/AsioServer.cpp"
     "adapters/asio/AsioSession.cpp"
@@ -42,7 +46,6 @@ target_include_directories(anchor
 
 find_package(spdlog CONFIG REQUIRED)
 find_package(stduuid CONFIG REQUIRED)
-find_package(GTest CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(asio CONFIG REQUIRED)
 find_package(libconfig CONFIG REQUIRED)

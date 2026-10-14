@@ -1,6 +1,5 @@
 """Run with: python3 -m unittest discover -s packaging/macos -v"""
 
-import configparser
 import hashlib
 import io
 import json
@@ -80,17 +79,6 @@ class PackagingTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn("without sudo", result.stderr)
-
-    def test_config_defaults_resolve_from_config_directory(self):
-        template = Path(__file__).resolve().parents[1] / "server.conf"
-        config = configparser.ConfigParser(interpolation=None)
-        config.read(template)
-        support = (self.directory / "Library/Application Support/Anchor").resolve()
-        config_dir = support / "config"
-        workspace = (config_dir / config["paths"]["workspace_dir"]).resolve()
-        plans = (config_dir / config["paths"]["backup_plans_dir"]).resolve()
-        self.assertEqual(workspace, support / "workspace")
-        self.assertEqual(plans, config_dir / "plans")
 
 
 if __name__ == "__main__":

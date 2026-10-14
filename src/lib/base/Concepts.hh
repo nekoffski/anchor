@@ -39,9 +39,7 @@ template <typename C, typename Signature>
 concept Callable = details::CallableHelper<C, Signature>::value;
 
 template <typename T, typename... Ts>
-concept OneOf = requires() {
-    { (std::is_same_v<T, Ts> || ...) };
-};
+concept OneOf = (std::is_same_v<T, Ts> || ...);
 
 template <typename T>
 concept Iterable = requires(T& t) {

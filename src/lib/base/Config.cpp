@@ -17,6 +17,11 @@ Result<Config> Config::load(const Path& path) {
     LOOKUP_FIELD(*file, "paths.workspace", config.paths.workspace);
     LOOKUP_FIELD(*file, "paths.backup_plans", config.paths.backupPlans);
 
+    config.paths.workspace =
+        Path::join(path.parent(), config.paths.workspace.resolveEnv());
+    config.paths.backupPlans =
+        Path::join(path.parent(), config.paths.backupPlans.resolveEnv());
+
     return config;
 }
 

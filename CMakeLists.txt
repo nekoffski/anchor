@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.10)
 if(POLICY CMP0156)
     cmake_policy(SET CMP0156 NEW)
 endif()
@@ -32,6 +32,9 @@ include(CTest)
 add_subdirectory(src/lib)
 add_subdirectory(src/daemon)
 add_subdirectory(src/cli)
+if(BUILD_TESTING)
+    add_subdirectory(src/tests)
+endif()
 
 include(GNUInstallDirs)
 install(TARGETS anchor-cli anchord

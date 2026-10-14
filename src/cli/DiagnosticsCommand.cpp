@@ -1,6 +1,8 @@
 #include "DiagnosticsCommand.hh"
 
 #include "Client.hh"
+#include "proto/AckResponse.hh"
+#include "proto/DiagnosticRequest.hh"
 
 namespace anchor::cli {
 

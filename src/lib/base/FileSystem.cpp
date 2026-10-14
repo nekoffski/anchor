@@ -13,30 +13,27 @@ namespace fs = std::filesystem;
 namespace anchor {
 
 bool FileSystem::isFile(const Path& path) const {
-    return fs::is_regular_file(path.str());
+    std::error_code ec;
+    return fs::is_regular_file(path.str(), ec);
 }
 
 bool FileSystem::isDirectory(const Path& path) const {
-    return fs::is_directory(path.str());
+    std::error_code ec;
+    return fs::is_directory(path.str(), ec);
 }
 
 bool FileSystem::exists(const Path& path) const {
-    return fs::exists(path.str());
+    std::error_code ec;
+    return fs::exists(path.str(), ec);
 }
 
 Result<void> FileSystem::copyFile(const Path& from, const Path& to) const {
-    try {
-        if (not fs::copy_file(from.str(), to.str())) {
-            return Error::unexpected(
-                ErrorCode::fileSystemError,
-                "Failed to copy file from '{}' to '{}'", from.str(), to.str()
-            );
-        }
-    } catch (const std::exception& e) {
+    std::error_code ec;
+    if (not fs::copy_file(from.str(), to.str(), ec)) {
         return Error::unexpected(
             ErrorCode::fileSystemError,
             "Failed to copy file from '{}' to '{}': {}", from.str(), to.str(),
-            e.what()
+            ec.message()
         );
     }
     return {};
@@ -45,36 +42,52 @@ Result<void> FileSystem::copyFile(const Path& from, const Path& to) const {
 Result<void> FileSystem::copyDirectoryRecursive(
     const Path& from, const Path& to
 ) const {
-    try {
-        fs::copy(from.str(), to.str(), fs::copy_options::recursive);
-    } catch (const std::exception& e) {
+    std::error_code ec;
+    fs::copy(from.str(), to.str(), fs::copy_options::recursive, ec);
+    if (ec) {
         return Error::unexpected(
             ErrorCode::fileSystemError,
             "Failed to copy directory from '{}' to '{}': {}", from.str(),
-            to.str(), e.what()
+            to.str(), ec.message()
         );
     }
     return {};
 }
 
-std::vector<Path> FileSystem::listFiles(const Path& path) const {
-    std::vector<Path> files;
-    for (const auto& entry : fs::directory_iterator(path.str())) {
-        if (entry.is_regular_file()) {
-            files.emplace_back(entry.path().string());
+namespace {
+
+Result<std::vector<Path>> listEntries(const Path& path, fs::file_type type) {
+    std::vector<Path> entries;
+    std::error_code ec;
+    fs::directory_iterator iterator{path.str(), ec};
+    const fs::directory_iterator end;
+    while (not ec and iterator != end) {
+        const auto status = iterator->status(ec);
+        if (ec) {
+            break;
         }
+        if (status.type() == type) {
+            entries.emplace_back(iterator->path().string());
+        }
+        iterator.increment(ec);
     }
-    return files;
+    if (ec) {
+        return Error::unexpected(
+            ErrorCode::fileSystemError, "Failed to list '{}': {}", path.str(),
+            ec.message()
+        );
+    }
+    return entries;
 }
 
-std::vector<Path> FileSystem::listDirectories(const Path& path) const {
-    std::vector<Path> directories;
-    for (const auto& entry : fs::directory_iterator(path.str())) {
-        if (entry.is_directory()) {
-            directories.emplace_back(entry.path().string());
-        }
-    }
-    return directories;
+}  // namespace
+
+Result<std::vector<Path>> FileSystem::listFiles(const Path& path) const {
+    return listEntries(path, fs::file_type::regular);
+}
+
+Result<std::vector<Path>> FileSystem::listDirectories(const Path& path) const {
+    return listEntries(path, fs::file_type::directory);
 }
 
 Result<void> FileSystem::remove(const Path& path) const {
@@ -121,7 +134,7 @@ Result<Path> FileSystem::createDirectory(const Path& path) const {
             path.str()
         );
     }
-    return {};
+    return path;
 }
 
 Result<void> FileSystem::appendFile(
@@ -135,6 +148,12 @@ Result<void> FileSystem::appendFile(
         );
     }
     file << content;
+    file.flush();
+    if (not file) {
+        return Error::unexpected(
+            ErrorCode::fileSystemError, "Failed to append file: {}", path.str()
+        );
+    }
     return {};
 }
 
@@ -147,12 +166,18 @@ Result<void> FileSystem::writeFile(const Path& path, const Str& content) const {
         );
     }
     file << content;
+    file.flush();
+    if (not file) {
+        return Error::unexpected(
+            ErrorCode::fileSystemError, "Failed to write file: {}", path.str()
+        );
+    }
     return {};
 }
 
 Result<Str> FileSystem::readFile(const Path& path) const {
     std::ifstream file(path.str());
-    if (not file.is_open()) {
+    if (not file.is_open() or isDirectory(path)) {
         return Error::unexpected(
             ErrorCode::fileSystemError, "Failed to open file for reading: {}",
             path.str()
@@ -160,12 +185,17 @@ Result<Str> FileSystem::readFile(const Path& path) const {
     }
     std::stringstream buffer;
     buffer << file.rdbuf();
+    if (file.bad()) {
+        return Error::unexpected(
+            ErrorCode::fileSystemError, "Failed to read file: {}", path.str()
+        );
+    }
     return buffer.str();
 }
 
 Result<std::vector<Str>> FileSystem::readLines(const Path& path) const {
     std::ifstream file(path.str());
-    if (not file.is_open()) {
+    if (not file.is_open() or isDirectory(path)) {
         return Error::unexpected(
             ErrorCode::fileSystemError, "Failed to open file for reading: {}",
             path.str()
@@ -175,6 +205,11 @@ Result<std::vector<Str>> FileSystem::readLines(const Path& path) const {
     Str line;
     while (std::getline(file, line)) {
         lines.push_back(line);
+    }
+    if (file.bad()) {
+        return Error::unexpected(
+            ErrorCode::fileSystemError, "Failed to read lines: {}", path.str()
+        );
     }
     return lines;
 }
@@ -188,15 +223,21 @@ Result<std::vector<Byte>> FileSystem::readBinary(const Path& path) const {
         );
     }
     auto size = file.tellg();
-    if (size % sizeof(Byte) != 0) {
+    if (size < 0) {
         return Error::unexpected(
-            ErrorCode::invalidArgument,
-            "File '{}' size is not a multiple of 1 byte", path.str()
+            ErrorCode::fileSystemError, "Failed to determine file size: {}",
+            path.str()
         );
     }
     file.seekg(0);
     std::vector<Byte> buffer(static_cast<std::size_t>(size) / sizeof(Byte));
     file.read(reinterpret_cast<char*>(buffer.data()), size);
+    if (not file) {
+        return Error::unexpected(
+            ErrorCode::fileSystemError, "Failed to read binary file: {}",
+            path.str()
+        );
+    }
     return buffer;
 }
 

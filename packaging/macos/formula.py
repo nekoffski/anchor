@@ -112,7 +112,7 @@ def generate(archives, repository, local=False):
         "      and passed to anchord as its first argument. Existing files are preserved.",
         "      Backup plan .conf files belong in:",
         "        ~/Library/Application Support/Anchor/config/plans/",
-        "      server.conf uses paths workspace_dir and backup_plans_dir.",
+        "      server.conf uses paths.workspace and paths.backup_plans.",
         "      Grant anchord Full Disk Access in System Settings if backup sources require it.",
         "      The daemon does not yet load configuration files.",
         "    EOS",

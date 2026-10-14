@@ -1,5 +1,10 @@
 #include "AsioController.hh"
 
+#include "proto/AckResponse.hh"
+#include "proto/DiagnosticRequest.hh"
+#include "proto/ErrorResponse.hh"
+#include "proto/TriggerBackupRequest.hh"
+
 namespace anchor {
 
 AsioController::AsioController(RequestSender sender) : m_sender(sender) {}

@@ -17,7 +17,11 @@ class LibconfigReader : public NonCopyable {
 
     template <typename T>
     bool lookup(const Str& key, T& value) const {
-        return m_config->lookupValue(key.c_str(), value);
+        try {
+            return m_config->lookupValue(key.c_str(), value);
+        } catch (const libconfig::ConfigException&) {
+            return false;
+        }
     }
 
     bool lookup(const Str& key, u16& value) const;

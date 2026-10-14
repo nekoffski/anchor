@@ -34,85 +34,13 @@ class Message : public NonCopyable, public NonMovable {
 template <typename T>
 class MessageImpl : public Message {
    public:
-    MessageImpl(const Str& name) : m_name(std::move(name)) {}
+    explicit MessageImpl(const Str& name) : m_name(name) {}
 
    private:
     std::type_index type() const override { return typeid(T); }
     Str name() const override { return m_name; }
 
     Str m_name;
-};
-
-class ErrorResponse : public MessageImpl<ErrorResponse> {
-   public:
-    explicit ErrorResponse(ErrorCode code, const Str& message)
-        : ErrorResponse(Error{code, message}) {}
-
-    explicit ErrorResponse(const Error& error)
-        : MessageImpl<ErrorResponse>("ErrorResponse"), m_error(error) {}
-
-    const Error& error() const { return m_error; }
-
-    virtual Json serializeBody() const override {
-        Json json;
-        json["message"] = m_error.message();
-        json["code"] = std::to_underlying(m_error.code());
-        return json;
-    }
-
-   private:
-    Error m_error;
-};
-
-class TriggerBackupRequest : public MessageImpl<TriggerBackupRequest> {
-   public:
-    TriggerBackupRequest(const Str& name)
-        : MessageImpl<TriggerBackupRequest>("TriggerBackupRequest"),
-          m_name(name) {}
-
-    virtual Json serializeBody() const override {
-        Json json;
-        json["name"] = m_name;
-        return json;
-    }
-
-    const Str& backupName() const { return m_name; }
-
-    static std::unique_ptr<TriggerBackupRequest> create(const Json& json) {
-        return std::make_unique<TriggerBackupRequest>(json["name"].get<Str>());
-    }
-
-   private:
-    Str m_name;
-};
-
-class DiagnosticRequest : public MessageImpl<DiagnosticRequest> {
-   public:
-    DiagnosticRequest(const Str& details)
-        : MessageImpl<DiagnosticRequest>("DiagnosticRequest"),
-          m_details(details) {}
-
-    virtual Json serializeBody() const override {
-        Json json;
-        json["details"] = m_details;
-        return json;
-    }
-
-    static std::unique_ptr<DiagnosticRequest> create(const Json& json) {
-        return std::make_unique<DiagnosticRequest>(json["details"].get<Str>());
-    }
-
-    const Str& details() const { return m_details; }
-
-   private:
-    Str m_details;
-};
-
-class AckResponse : public MessageImpl<AckResponse> {
-   public:
-    AckResponse() : MessageImpl<AckResponse>("AckResponse") {}
-
-    virtual Json serializeBody() const override { return Json{}; }
 };
 
 }  // namespace anchor::proto

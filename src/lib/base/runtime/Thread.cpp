@@ -38,11 +38,9 @@ void Thread::go() {
     try {
         run();
     } catch (const std::exception& e) {
-        log::error("{} - standard exception in thread: {}", m_ident, e.what());
-        throw;
+        log::panic("{} - standard exception in thread: {}", m_ident, e.what());
     } catch (...) {
-        log::error("{} - unknown exception in thread", m_ident);
-        throw;
+        log::panic("{} - unknown exception in thread", m_ident);
     }
     log::info("{} - thread exiting", m_ident);
 }

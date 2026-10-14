@@ -3,6 +3,7 @@
 #include "base/Functional.hh"
 #include "base/Log.hh"
 #include "base/String.hh"
+#include "proto/ErrorResponse.hh"
 
 namespace anchor {
 

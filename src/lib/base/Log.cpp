@@ -58,7 +58,7 @@ void init(const LoggerOptions& options) {
     spdlog::set_default_logger(logger);
 
     spdlog::set_pattern(options.formatPattern);
-    spdlog::set_level(spdlog::level::trace);
+    setLogLevel(options.level);
 }
 
 Level level() { return currentLogLevel; }

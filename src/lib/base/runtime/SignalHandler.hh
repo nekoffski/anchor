@@ -1,5 +1,7 @@
 #pragma once
 
+#include <csignal>
+
 #include "base/Concepts.hh"
 #include "base/Core.hh"
 #include "base/Error.hh"
@@ -24,7 +26,7 @@ class SignalHandler : public NonCopyable, public NonMovable {
    private:
     void waitImpl(MoveOnlyFunction<SignalAction(Signal)>);
 
-    u32 m_sigset;
+    sigset_t m_sigset;
 };
 
 Result<Signal> fromPosix(i32 posixSignal);
