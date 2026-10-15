@@ -3,21 +3,22 @@
 #include <ranges>
 
 #include "base/Log.hh"
-#include "base/YamlReader.hh"
+#include "base/Yaml.hh"
 
 namespace anchor {
 
 Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
-    auto reader = YamlReader::create(path, fs);
+    const auto file = loadYaml(path, fs);
 
-    if (not reader) {
-        return Error::unexpected(reader.error());
+    if (not file) {
+        return Error::unexpected(file.error());
     }
 
     BackupPlan plan;
     plan.name = path.filename();
 
-    auto destinationStr = reader->lookup<Str>("settings.destination");
+    const auto settings = (*file)["settings"];
+    auto destinationStr = yamlField<Str>(settings, "destination");
     if (not destinationStr) {
         return Error::unexpected(destinationStr.error());
     }
@@ -28,7 +29,7 @@ Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
     }
     plan.destination = *destination;
 
-    auto archiveTypeStr = reader->lookup<Str>("settings.archive");
+    auto archiveTypeStr = yamlField<Str>(settings, "archive");
     if (not archiveTypeStr) {
         return Error::unexpected(archiveTypeStr.error());
     }
@@ -39,7 +40,20 @@ Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
     }
     plan.archiveType = *archiveType;
 
-    LOOKUP_FIELD(*reader, "filters", plan.filters);
+    const auto filters = (*file)["filters"];
+    if (not filters.IsDefined() or not filters.IsSequence()) {
+        return Error::unexpected(
+            ErrorCode::invalidConfig, "Missing or invalid field: filters"
+        );
+    }
+    for (const auto& filter : filters) {
+        if (not filter.IsScalar()) {
+            return Error::unexpected(
+                ErrorCode::invalidConfig, "Expected a scalar in filters"
+            );
+        }
+        plan.filters.emplace_back(filter.Scalar());
+    }
 
     return plan;
 }

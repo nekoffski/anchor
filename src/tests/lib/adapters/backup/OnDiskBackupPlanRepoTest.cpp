@@ -37,6 +37,10 @@ TEST_F(ConfigTest, PlanRepoParsesPlansAndSkipsReportedErrors) {
     )"));
     const std::vector<Str> invalid{
         "settings: [unterminated",
+        "{}",
+        "settings: null\nfilters: []",
+        "settings: scalar\nfilters: []",
+        "settings: [directory]\nfilters: []",
         "settings: {archive: directory}\nfilters: []",
         "settings: {destination: ftp://bad, archive: directory}\nfilters: []",
         "settings: {destination: local:///backup}\nfilters: []",
@@ -48,6 +52,8 @@ TEST_F(ConfigTest, PlanRepoParsesPlansAndSkipsReportedErrors) {
         "directory}\nfilters: [valid, {}]",
         "settings: {destination: local:///backup, archive: "
         "directory}\nfilters: [null]",
+        "settings: {destination: null, archive: directory}\nfilters: []",
+        "settings: {destination: local:///backup, archive: null}\nfilters: []",
     };
     for (size_t i = 0; i < invalid.size(); ++i) {
         ASSERT_TRUE(
@@ -65,6 +71,19 @@ TEST_F(ConfigTest, PlanRepoParsesPlansAndSkipsReportedErrors) {
     ASSERT_EQ(plan.filters.size(), 2);
     EXPECT_EQ(plan.filters[0].str(), "/one");
     EXPECT_EQ(plan.filters[1].str(), "$ANCHOR_TEST_PATH/two");
+}
+
+TEST_F(ConfigTest, PlanRepoParsesYmlPlansWithEmptyFilters) {
+    ASSERT_TRUE(fs.writeFile(path("empty.yml"), R"(
+        settings: {destination: local:///backup, archive: directory}
+        filters: []
+    )"));
+    OnDiskBackupPlanRepo repo{root, fs};
+    std::vector<BackupPlan> plans;
+    repo.forEach([&](const BackupPlan& plan) { plans.push_back(plan); });
+    ASSERT_EQ(plans.size(), 1);
+    EXPECT_EQ(plans.front().name, "empty");
+    EXPECT_TRUE(plans.front().filters.empty());
 }
 
 TEST_F(ConfigTest, PlanRepoPropagatesListingErrorsAndSkipsIteration) {

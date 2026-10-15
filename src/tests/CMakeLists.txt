@@ -25,6 +25,7 @@ add_executable(anchor-tests
     lib/base/SyncTest.cpp
     lib/base/TimeTest.cpp
     lib/base/UnwrapTest.cpp
+    lib/base/YamlTest.cpp
     lib/base/runtime/RuntimeTest.cpp
     lib/core/domain/DomainTest.cpp
     lib/core/services/BackupRunTest.cpp
