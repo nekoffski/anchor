@@ -6,15 +6,6 @@
 
 namespace anchor {
 
-namespace details {
-
-class ArchiveWriter {
-   public:
-   private:
-};
-
-}  // namespace details
-
 class ZipSnapshotter : public Snapshotter {
    public:
    private:

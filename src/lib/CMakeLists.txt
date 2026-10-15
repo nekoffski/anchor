@@ -37,6 +37,7 @@ add_library(anchor STATIC
     # -- domain
     "core/domain/Backup.cpp"
     "core/domain/Location.cpp"
+    "core/domain/Filter.cpp"
 )
 
 target_include_directories(anchor
