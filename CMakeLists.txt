@@ -40,7 +40,7 @@ include(GNUInstallDirs)
 install(TARGETS anchor-cli anchord
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-install(FILES packaging/server.conf
+install(FILES packaging/server.yaml
     DESTINATION ${CMAKE_INSTALL_DATADIR}/anchor
 )
 

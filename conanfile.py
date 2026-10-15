@@ -20,7 +20,7 @@ class AnchorConan(ConanFile):
         self.requires("stduuid/1.2.3")
         self.requires("nlohmann_json/3.12.0")
         self.requires("asio/1.30.2")
-        self.requires("libconfig/1.7.3")
+        self.requires("yaml-cpp/0.8.0")
         self.requires("libarchive/3.8.7")
 
     def build_requirements(self):

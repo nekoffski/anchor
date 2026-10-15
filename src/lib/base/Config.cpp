@@ -1,11 +1,11 @@
 #include "Config.hh"
 
-#include "LibconfigReader.hh"
+#include "YamlReader.hh"
 
 namespace anchor {
 
 Result<Config> Config::load(const Path& path) {
-    auto file = LibconfigReader::create(path);
+    auto file = YamlReader::create(path);
 
     if (not file) {
         return Error::unexpected(file.error());

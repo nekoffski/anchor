@@ -73,7 +73,7 @@ At service startup the launcher prepares these private user directories:
 | Purpose | Path |
 | --- | --- |
 | Configuration | `~/Library/Application Support/Anchor/config/` |
-| Backup plans (`.conf` files) | `~/Library/Application Support/Anchor/config/plans/` |
+| Backup plans (`.yaml` or `.yml` files) | `~/Library/Application Support/Anchor/config/plans/` |
 | Persistent workspace | `~/Library/Application Support/Anchor/workspace/` |
 | Cache | `~/Library/Caches/Anchor/` |
 | Logs | `~/Library/Logs/Anchor/` |
@@ -81,42 +81,44 @@ At service startup the launcher prepares these private user directories:
 The daemon runs with the workspace as its working directory. Output is appended
 to `anchord.log` and `anchord-error.log`; log rotation is not configured yet.
 Directories and logs are created with private permissions. Existing user data
-is preserved on restart, upgrade, and uninstall. A libconfig `server.conf` ships
+is preserved on restart, upgrade, and uninstall. A YAML `server.yaml` ships
 in the formula's `share/anchor` directory and is copied to
-`~/Library/Application Support/Anchor/config/server.conf` on first service
+`~/Library/Application Support/Anchor/config/server.yaml` on first service
 startup. Existing configurations are preserved. The launcher passes its
 absolute path as the first argument to `anchord`.
 
 The packaged configuration contains:
 
-```conf
-api = {
-    port = 4448;
-};
-paths = {
-    workspace = "../workspace";
-    backup_plans = "plans";
-};
+```yaml
+api:
+  port: 4448
+paths:
+  workspace: ../workspace
+  backup_plans: plans
 ```
 
 Relative paths resolve against the directory containing
-`server.conf`, not the daemon's working directory. These defaults identify the
+`server.yaml`, not the daemon's working directory. These defaults identify the
 workspace and backup-plan directories above without embedding a username.
-New installations receive this file automatically. Existing files, including
-empty configurations from earlier installations, are preserved.
+New installations receive this file automatically. Existing YAML configurations
+are preserved.
 
 `paths.workspace` holds durable state such as SQLite databases and other
-application files. `paths.backup_plans` holds the `.conf` files describing backup
-plans. Backup data goes to the destinations specified by those plans, separately
-from Anchor's internal workspace.
+application files. `paths.backup_plans` holds the `.yaml` or `.yml` files
+describing backup plans. Backup data goes to the destinations specified by those
+plans, separately from Anchor's internal workspace.
 
-When upgrading an earlier installation, the launcher creates `config/plans`
-but preserves existing configuration and files. Update older `server.conf`
-files to the libconfig syntax above, renaming `workspace_dir` to `workspace`
-and `backup_config_dir` or `backup_plans_dir` to `backup_plans` in the `paths`
-group, and include `api.port`. Retain the old directory as the setting's value
-if needed. Packaging does not automatically migrate existing configurations
-or plans.
+Each backup plan is a YAML mapping, named after its file without the extension.
+For example, `plans/daily.yaml`:
+
+```yaml
+settings:
+  archive: directory
+  destination: local://$HOME/backups
+filters:
+  - $HOME/Documents
+  - $HOME/Pictures
+```
 
 For protected backup sources, grant the daemon Full Disk Access in System
 Settings > Privacy & Security. This does not grant access beyond the service
@@ -141,7 +143,7 @@ python3 packaging/macos/package.py --build-dir build/Release
 ```
 
 This creates `dist/anchor-<version>-macos-<architecture>.tar.gz` and a SHA-256
-checksum file. The archive includes both binaries, the launcher, `server.conf`,
+checksum file. The archive includes both binaries, the launcher, `server.yaml`,
 the license, and release metadata. Packaging rejects Debug builds, mismatched binary
 architectures, and dependencies on unbundled non-system dynamic libraries.
 The version comes from CMake; the architecture and minimum macOS version come

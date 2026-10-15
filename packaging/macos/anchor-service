@@ -18,9 +18,9 @@ logs="$HOME/Library/Logs/Anchor"
 umask 077
 mkdir -p "$support/config/plans" "$support/workspace" \
     "$HOME/Library/Caches/Anchor" "$logs"
-config="$support/config/server.conf"
+config="$support/config/server.yaml"
 if [ ! -e "$config" ] && [ ! -L "$config" ]; then
-    cp "$service_dir/../share/anchor/server.conf" "$config"
+    cp "$service_dir/../share/anchor/server.yaml" "$config"
 fi
 cd "$support/workspace"
 exec "$service_dir/../bin/anchord" "$config" >>"$logs/anchord.log" 2>>"$logs/anchord-error.log"

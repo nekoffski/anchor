@@ -63,6 +63,7 @@ class ScopedEnv {
 class MockFileSystem : public FileSystem {
    public:
     MOCK_METHOD(bool, exists, (const Path&), (const, override));
+    MOCK_METHOD(Result<Str>, readFile, (const Path&), (const, override));
     MOCK_METHOD(bool, isDirectory, (const Path&), (const, override));
     MOCK_METHOD(
         Result<std::vector<Path>>, listFiles, (const Path&), (const, override)

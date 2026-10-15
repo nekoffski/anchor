@@ -2,13 +2,13 @@
 
 #include <ranges>
 
-#include "base/LibconfigReader.hh"
 #include "base/Log.hh"
+#include "base/YamlReader.hh"
 
 namespace anchor {
 
 Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
-    auto reader = LibconfigReader::create(path, fs);
+    auto reader = YamlReader::create(path, fs);
 
     if (not reader) {
         return Error::unexpected(reader.error());
@@ -59,16 +59,15 @@ Result<void> OnDiskBackupPlanRepo::valid() const {
 }
 
 Result<std::vector<Path>> OnDiskBackupPlanRepo::list() const {
-    static auto filterNonConf = [](const Path& p) {
-        return p.endsWith(".conf");
+    static auto isYaml = [](const Path& p) {
+        return p.endsWith(".yaml") or p.endsWith(".yml");
     };
 
     auto files = m_fs.listFiles(m_plansPath);
     if (not files) {
         return Error::unexpected(files.error());
     }
-    return *files | std::views::filter(filterNonConf) |
-           std::ranges::to<std::vector>();
+    return *files | std::views::filter(isYaml) | std::ranges::to<std::vector>();
 }
 
 void OnDiskBackupPlanRepo::forEach(Callback callback) const {

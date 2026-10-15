@@ -3,6 +3,7 @@
 import hashlib
 import io
 import json
+import shutil
 import subprocess
 import tarfile
 import tempfile
@@ -45,6 +46,35 @@ class PackagingTests(unittest.TestCase):
         self.assertIn('run opt_libexec/"anchor-service"', formula)
         self.assertIn('MacOSVersion.new("14.0")', formula)
         self.assertNotIn("require_root true", formula)
+        self.assertIn('pkgshare.install "share/anchor/server.yaml"', formula)
+
+    def test_service_copies_yaml_and_preserves_existing_configuration(self):
+        home = self.directory / "home"
+        service = self.directory / "libexec" / "anchor-service"
+        service.parent.mkdir()
+        shutil.copyfile(Path(__file__).with_name("anchor-service"), service)
+        share = self.directory / "share" / "anchor"
+        share.mkdir(parents=True)
+        shipped = Path(__file__).resolve().parents[1] / "server.yaml"
+        shutil.copyfile(shipped, share / "server.yaml")
+        binaries = self.directory / "bin"
+        binaries.mkdir()
+        (binaries / "id").write_text("#!/bin/sh\nprintf '1000\\n'\n")
+        (binaries / "anchord").write_text('#!/bin/sh\nprintf "%s\\n" "$1"\n')
+        for binary in binaries.iterdir():
+            binary.chmod(0o755)
+        command = [
+            "/usr/bin/env", f"HOME={home}", f"PATH={binaries}:/usr/bin:/bin",
+            "/bin/sh", str(service),
+        ]
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        config = home / "Library/Application Support/Anchor/config/server.yaml"
+        self.assertEqual(config.read_text(), shipped.read_text())
+        log = home / "Library/Logs/Anchor/anchord.log"
+        self.assertEqual(log.read_text().strip(), str(config))
+        config.write_text("api: {port: 5555}\n")
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        self.assertEqual(config.read_text(), "api: {port: 5555}\n")
 
     def test_single_architecture_is_restricted(self):
         self.assertIn("depends_on arch: :arm64", generate([self.archive()], "nekoffski/anchor"))

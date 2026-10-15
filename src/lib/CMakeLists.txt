@@ -12,7 +12,7 @@ add_library(anchor STATIC
     "base/Config.cpp"
     "base/Handle.cpp"
     "base/Json.cpp"
-    "base/LibconfigReader.cpp"
+    "base/YamlReader.cpp"
     "base/runtime/Thread.cpp"
     "base/runtime/SignalHandler.cpp"
     # -- proto
@@ -49,7 +49,7 @@ find_package(spdlog CONFIG REQUIRED)
 find_package(stduuid CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(asio CONFIG REQUIRED)
-find_package(libconfig CONFIG REQUIRED)
+find_package(yaml-cpp CONFIG REQUIRED)
 find_package(LibArchive CONFIG REQUIRED)
 
 target_link_libraries(anchor
@@ -59,7 +59,7 @@ target_link_libraries(anchor
         stduuid::stduuid
         nlohmann_json::nlohmann_json
         asio::asio
-        libconfig::libconfig
+        yaml-cpp::yaml-cpp
         LibArchive::LibArchive
 )
 

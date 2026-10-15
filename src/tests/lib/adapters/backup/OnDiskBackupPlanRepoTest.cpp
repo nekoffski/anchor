@@ -1,23 +1,25 @@
 #include "TestSupport.hh"
 #include "adapters/backup/OnDiskBackupPlanRepo.hh"
-#include "base/Config.hh"
-#include "base/LibconfigReader.hh"
 
 namespace anchor::test {
 using namespace testing;
 using ConfigTest = TemporaryDirectory;
 
-TEST_F(ConfigTest, PlanRepoValidatesDirectoryAndFiltersConfFiles) {
+TEST_F(ConfigTest, PlanRepoValidatesDirectoryAndFiltersYamlFiles) {
     OnDiskBackupPlanRepo repo{root, fs};
     EXPECT_TRUE(repo.valid());
-    ASSERT_TRUE(fs.touch(path("daily.conf")));
+    ASSERT_TRUE(fs.touch(path("daily.yaml")));
+    ASSERT_TRUE(fs.touch(path("weekly.yml")));
     ASSERT_TRUE(fs.touch(path("notes.txt")));
-    ASSERT_TRUE(fs.touch(path("weekly.CONF")));
-    ASSERT_TRUE(fs.createDirectory(path("directory.conf")));
+    ASSERT_TRUE(fs.touch(path("weekly.YAML")));
+    ASSERT_TRUE(fs.createDirectory(path("directory.yaml")));
     auto paths = repo.list();
     ASSERT_TRUE(paths);
-    ASSERT_EQ(paths->size(), 1);
-    EXPECT_EQ((*paths)[0].filenameWithExtension(), "daily.conf");
+    std::vector<Str> names;
+    for (const auto& file : *paths) {
+        names.push_back(file.filenameWithExtension());
+    }
+    EXPECT_THAT(names, UnorderedElementsAre("daily.yaml", "weekly.yml"));
     OnDiskBackupPlanRepo missing{path("absent"), fs};
     auto result = missing.valid();
     ASSERT_FALSE(result);
@@ -25,27 +27,31 @@ TEST_F(ConfigTest, PlanRepoValidatesDirectoryAndFiltersConfFiles) {
 }
 
 TEST_F(ConfigTest, PlanRepoParsesPlansAndSkipsReportedErrors) {
-    ASSERT_TRUE(fs.writeFile(path("daily.conf"), R"(
-        settings = { destination = "local:///backup"; archive = "directory"; };
-        filters = ("/one", "$ANCHOR_TEST_PATH/two");
+    ASSERT_TRUE(fs.writeFile(path("daily.yaml"), R"(
+        settings:
+          destination: local:///backup
+          archive: directory
+        filters:
+          - /one
+          - $ANCHOR_TEST_PATH/two
     )"));
     const std::vector<Str> invalid{
-        "not valid {{",
-        "settings={archive=\"directory\";}; filters=();",
-        "settings={destination=\"ftp://bad\"; archive=\"directory\";}; "
-        "filters=();",
-        "settings={destination=\"local:///backup\";}; filters=();",
-        "settings={destination=\"local:///backup\"; archive=\"rar\";}; "
-        "filters=();",
-        "settings={destination=\"local:///backup\"; archive=\"directory\";}; "
-        "filters=\"bad\";",
-        "settings={destination=\"local:///backup\"; archive=\"directory\";};",
-        "settings={destination=\"local:///backup\"; archive=\"directory\";}; "
-        "filters=(\"valid\",2);",
+        "settings: [unterminated",
+        "settings: {archive: directory}\nfilters: []",
+        "settings: {destination: ftp://bad, archive: directory}\nfilters: []",
+        "settings: {destination: local:///backup}\nfilters: []",
+        "settings: {destination: local:///backup, archive: rar}\nfilters: []",
+        "settings: {destination: local:///backup, archive: "
+        "directory}\nfilters: bad",
+        "settings: {destination: local:///backup, archive: directory}",
+        "settings: {destination: local:///backup, archive: "
+        "directory}\nfilters: [valid, {}]",
+        "settings: {destination: local:///backup, archive: "
+        "directory}\nfilters: [null]",
     };
     for (size_t i = 0; i < invalid.size(); ++i) {
         ASSERT_TRUE(
-            fs.writeFile(path(fmt::format("invalid{}.conf", i)), invalid[i])
+            fs.writeFile(path(fmt::format("invalid{}.yaml", i)), invalid[i])
         );
     }
     OnDiskBackupPlanRepo repo{root, fs};

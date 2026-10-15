@@ -20,13 +20,13 @@ TEST(Path, JoinsPathsAndAppendsSuffixes) {
     EXPECT_EQ(Path::join("/base", "/absolute").str(), "/absolute");
     EXPECT_EQ(Path::join("", "child").str(), "child");
     Path path{"file"};
-    path.append(".conf");
-    EXPECT_TRUE(path.endsWith(".conf"));
+    path.append(".yaml");
+    EXPECT_TRUE(path.endsWith(".yaml"));
     EXPECT_TRUE(path.endsWith(""));
     EXPECT_FALSE(path.endsWith(".CONF"));
-    EXPECT_FALSE(path.endsWith("longer-than-file.conf"));
-    EXPECT_EQ((path + ".bak").str(), "file.conf.bak");
-    EXPECT_EQ(path.str(), "file.conf");
+    EXPECT_FALSE(path.endsWith("longer-than-file.yaml"));
+    EXPECT_EQ((path + ".bak").str(), "file.yaml.bak");
+    EXPECT_EQ(path.str(), "file.yaml");
 }
 
 TEST(Path, ResolvesEnvironmentVariablesByPathComponent) {
