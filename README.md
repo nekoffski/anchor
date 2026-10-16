@@ -1,254 +1,65 @@
 # Anchor
 
-## Unit tests
+Anchor is a C++23 backup engine with a command-line client and a background
+daemon. It uses YAML manifests to select files and directories, build snapshots,
+and copy them to a backup destination.
 
-Unit tests use GoogleTest and GoogleMock from the existing Conan dependencies.
-They live in `src/tests/lib`, mirroring the library's `base`, `core`, `adapters`,
-and `proto` modules. Root `tests/` is reserved for functional tests. Test files
-are listed explicitly in `src/tests/CMakeLists.txt`; shared fixtures and mocks
-stay inside the unit-test tree.
+The project is under active development. Directory snapshots and local storage
+are currently implemented.
 
-```sh
-make bootstrap  # once, to select a supported compiler
-make test       # build Debug and run the unit tests with CTest
-```
+## Build
 
-After building, run the existing suite or a selected component without
-reinstalling dependencies:
+Supported platforms: macOS and Linux.
 
-```sh
-ctest --preset conan-debug --output-on-failure
-ctest --preset conan-debug -R 'BackupRunTest' --output-on-failure
-build/Debug/src/tests/anchor-tests --gtest_filter='Message.*'
-```
+Install these prerequisites and make sure they are available in `PATH`:
 
-CTest discovers individual cases and gives each a ten-second timeout and the
-`unit` label. Filesystem tests use private temporary directories; service and
-adapter failure cases use mocks. Tests cover utilities, configuration, domain
-conversions, protocol validation, queues, threading, profiling, repositories,
-snapshot creation/storage, and backup orchestration. Socket transport belongs
-in functional tests; the empty archive snapshotters and thread pool have no
-behavior to test yet.
-
-Set `-DBUILD_TESTING=OFF` when configuring CMake to omit the test executable and
-GoogleTest lookup. Tests are enabled by default.
-
-## CLI
-
-`anchor` runs one command and exits. It connects to the local daemon on port
-`4448` by default; use `--port PORT` to override it. The CLI does not read a
-configuration file and disables logging. Diagnostics sends the library's
-diagnostic request and reads the daemon's acknowledgement over a synchronous connection.
-Sync and backup commands currently print mock output without contacting the daemon.
+- Python 3 and Make
+- CMake 3.23 or newer
+- Conan 2 for dependency management
+- A C++23 compiler: GCC 14+, Clang 18+, or Apple Clang 17+
 
 ```sh
-anchor diagnostics
-anchor --port 4448 diagnostics --details "manual check"
-anchor sync
-anchor backup trigger --name daily
-anchor backup list
-anchor backup activate --name daily
-anchor backup status
-anchor backup status --name daily
-anchor --help
+make bootstrap  # select a compiler and create the local Conan profile
+make build      # install dependencies and build Release binaries
 ```
 
-## Installation
+Run `make bootstrap` once before the first build. It saves the compiler settings
+in `.anchor/bootstrap.profile`.
 
-### macOS: Homebrew user service
+Binaries are written to `build/Release/src/cli/anchor` and
+`build/Release/src/daemon/anchord`.
 
-The Homebrew package is named `anchor`. Its daemon runs as the user who starts
-the service (for example, `kaper`), with that user's file permissions. It does
-not use a separate `anchor` account. Start it without `sudo`; the service
-launcher refuses to run as root.
+For a Debug build or to run the unit tests:
 
-The package provides `anchor` and `anchord` in Homebrew's `bin` directory
-and a service launcher in the formula's `libexec` directory. Homebrew generates
-the LaunchAgent from the formula's `service` block. The service starts at login
-and can run while the screen is locked; it does not run before login or after
-logout.
-
-At service startup the launcher prepares these private user directories:
-
-| Purpose | Path |
-| --- | --- |
-| Configuration | `~/Library/Application Support/Anchor/config/` |
-| Backup plans (`.yaml` or `.yml` files) | `~/Library/Application Support/Anchor/config/plans/` |
-| Persistent workspace | `~/Library/Application Support/Anchor/workspace/` |
-| Cache | `~/Library/Caches/Anchor/` |
-| Logs | `~/Library/Logs/Anchor/` |
-
-The daemon runs with the workspace as its working directory. Output is appended
-to `anchord.log` and `anchord-error.log`; log rotation is not configured yet.
-Directories and logs are created with private permissions. Existing user data
-is preserved on restart, upgrade, and uninstall. A YAML `server.yaml` ships
-in the formula's `share/anchor` directory and is copied to
-`~/Library/Application Support/Anchor/config/server.yaml` on first service
-startup. Existing configurations are preserved. The launcher passes its
-absolute path as the first argument to `anchord`.
-
-The packaged configuration contains:
-
-```yaml
-api:
-  port: 4448
-paths:
-  workspace: ../workspace
-  backup_plans: plans
+```sh
+make build-debug
+make test         # build Debug and run the unit tests
 ```
 
-Relative paths resolve against the directory containing
-`server.yaml`, not the daemon's working directory. These defaults identify the
-workspace and backup-plan directories above without embedding a username.
-New installations receive this file automatically. Existing YAML configurations
-are preserved.
+## Example backup manifest
 
-`paths.workspace` holds durable state such as SQLite databases and other
-application files. `paths.backup_plans` holds the `.yaml` or `.yml` files
-describing backup plans. Backup data goes to the destinations specified by those
-plans, separately from Anchor's internal workspace.
-
-Each backup plan is a YAML mapping, named after its file without the extension.
-For example, `plans/daily.yaml`:
+Save this as `personal.yaml` in the directory configured by the daemon's
+`paths.backup_plans` setting. Both `.yaml` and `.yml` files are supported; the
+filename without its extension becomes the backup name (`personal`).
 
 ```yaml
 settings:
   archive: directory
-  destination: local://$HOME/backups
-filters:
-  - $HOME/Documents
-  - $HOME/Pictures
+  destination: local://$HOME/backups/anchor
+
+sources:
+  - root: $HOME
+    includes:
+      - Documents/*.pdf
+      - Documents/notes.txt
+      - Pictures
 ```
 
-For protected backup sources, grant the daemon Full Disk Access in System
-Settings > Privacy & Security. This does not grant access beyond the service
-user's ordinary file permissions.
+This selects PDF files directly inside `Documents`, the `notes.txt` file, and
+the entire `Pictures` directory. Include paths and glob patterns are relative
+to each source's `root`; selected directories are copied recursively. Relative
+paths are preserved in the snapshot, such as `Documents/notes.txt`.
 
-#### Build a release archive
-
-For now, macOS releases target the maintainer's current Apple Silicon machine.
-Older macOS versions and Intel builds are not part of the current validation.
-The formula checks the minimum OS version recorded in the binaries.
-
-On a macOS build machine, after `make bootstrap`:
-
-```sh
-make package-macos
-```
-
-Alternatively, package an existing Release build without rebuilding it:
-
-```sh
-python3 packaging/macos/package.py --build-dir build/Release
-```
-
-This creates `dist/anchor-<version>-macos-<architecture>.tar.gz` and a SHA-256
-checksum file. The archive includes both binaries, the launcher, `server.yaml`,
-the license, and release metadata. Packaging rejects Debug builds, mismatched binary
-architectures, and dependencies on unbundled non-system dynamic libraries.
-The version comes from CMake; the architecture and minimum macOS version come
-from the installed binaries. Build separate archives on Apple Silicon and
-Intel to support both. Only the current architecture is built by this command.
-Signing and notarization are not automated yet.
-
-#### Generate the formula
-
-Pass the archives for a single release to the formula generator. For example,
-for an Apple Silicon-only release:
-
-```sh
-python3 packaging/macos/formula.py dist/anchor-0.1.0-macos-arm64.tar.gz
-```
-
-Add the matching Intel archive as a second argument to support both platforms.
-The generator writes `dist/Formula/anchor.rb`, calculates checksums, restricts
-installation to available architectures, and checks the binary's minimum
-macOS version during installation. URLs point to the repository's GitHub
-Release named `v<version>`; override the repository with `--repository owner/name`.
-
-Publish the exact archives as GitHub Release assets and copy the generated
-formula into `Formula/anchor.rb` in your Homebrew tap repository. These scripts
-only create local files; they do not publish releases or register a live service.
-
-Once the release and tap are published:
-
-```sh
-brew install <owner>/<tap>/anchor
-brew services start <owner>/<tap>/anchor
-brew services info <owner>/<tap>/anchor
-brew services restart <owner>/<tap>/anchor
-brew services stop <owner>/<tap>/anchor
-```
-
-#### Install locally without publishing
-
-Build the archive and generate a local formula, then put it in a local Git tap:
-
-```sh
-make package-macos
-python3 packaging/macos/formula.py dist/anchor-0.1.0-macos-arm64.tar.gz \
-    --local --output dist/homebrew-anchor/Formula/anchor.rb
-git -C dist/homebrew-anchor init
-git -C dist/homebrew-anchor add Formula/anchor.rb
-git -C dist/homebrew-anchor commit -m "Package Anchor locally"
-brew tap local/anchor "$PWD/dist/homebrew-anchor"
-brew install local/anchor/anchor
-brew services start local/anchor/anchor
-```
-
-Keep the referenced archive on disk for future reinstallations. For a local
-rebuild of the same version, rebuild the archive, regenerate the local formula,
-and commit the updated formula in `dist/homebrew-anchor`. Then:
-
-```sh
-brew services stop local/anchor/anchor
-brew update
-brew fetch --force local/anchor/anchor
-brew reinstall local/anchor/anchor
-brew services start local/anchor/anchor
-```
-
-Use `brew upgrade local/anchor/anchor` instead of `reinstall` when the formula
-has a newer version. `reinstall` replaces the installed package even when the
-version is unchanged. Check status with `brew services info local/anchor/anchor`.
-For uninstall, stop the service and run `brew uninstall local/anchor/anchor`.
-
-For removal, stop the service first, then run
-`brew uninstall <owner>/<tap>/anchor`. User data remains in the Library paths.
-After an upgrade, restart the service to load the new daemon binary.
-
-Validate the packaging scripts with:
-
-```sh
-python3 -m unittest discover -s packaging/macos -v
-```
-
-### CMake installation and Linux service draft
-
-CMake installs `anchor` and `anchord` into the install prefix's `bin`
-directory. On Linux it also installs `anchord.service` into
-`lib/systemd/system` under that prefix. Override `ANCHOR_SYSTEMD_UNIT_DIR`
-at configure time if the distribution uses a different unit directory.
-
-For a Linux package, configure with `-DCMAKE_INSTALL_PREFIX=/usr`. The service
-records the configured binary path, so choose the prefix during configuration,
-before building and staging:
-
-```sh
-cmake --preset conan-release -DCMAKE_INSTALL_PREFIX=/usr
-cmake --build --preset conan-release
-DESTDIR="$PWD/dist/staging" cmake --install build/Release
-```
-
-`DESTDIR` stages files without installing them onto the build machine. It does
-not create service accounts, start services, or create runtime directories.
-
-The earlier Linux system-service draft requires an `anchor` system account and
-group; this is separate from the macOS user-service model above. It runs in
-the foreground with `/var/lib/anchor` as its working directory. systemd creates
-and owns `/var/lib/anchor`, `/var/cache/anchor`, and `/run/anchor` for the service.
-Logs go to the journal (`journalctl -u anchord`). Persistent data must survive
-package upgrades and normal removal.
-
-Linux package-specific account creation, service lifecycle hooks, and
-configuration installation are not implemented yet.
+`$HOME` is expanded in source roots and local destination paths. The destination
+receives a separate directory for each snapshot. Create the destination
+directory before running a backup.
