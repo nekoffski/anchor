@@ -10,7 +10,7 @@
 namespace anchor {
 
 template <typename Key, typename Value>
-class FlatMap : public NonCopyable {
+class FlatMap {
     struct Record {
         template <typename... Args>
             requires std::is_constructible_v<Value, Args...>
@@ -25,9 +25,6 @@ class FlatMap : public NonCopyable {
     explicit FlatMap(u64 initialCapacity = 0u) {
         m_records.reserve(initialCapacity);
     }
-
-    FlatMap(FlatMap&& other) noexcept = default;
-    FlatMap& operator=(FlatMap&& other) noexcept = default;
 
     template <typename... Args>
         requires std::constructible_from<Value, Args&&...>

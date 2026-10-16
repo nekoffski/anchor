@@ -14,6 +14,11 @@ class DirectorySnapshotter : public Snapshotter {
    private:
     Str newSnapshotName(const Str& backupName);
 
+    Result<void> traverse(
+        const Path& source, const Path& destination,
+        const SourceTree::Nodes& nodes
+    );
+
     const FileSystem& m_fs;
 };
 

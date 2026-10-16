@@ -13,7 +13,7 @@ namespace anchor {
 
 struct SnapshotArgs {
     const Str& name;
-    std::span<const Filter> filters;
+    std::span<const SourceTree> trees;
     const Path& workspace;
 };
 

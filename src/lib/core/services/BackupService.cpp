@@ -13,6 +13,8 @@ BackupService::BackupService(
 }
 
 void BackupService::triggerBackup(const Str& name) {
+    log::debug("Triggering backup: '{}'", name);
+
     if (not m_backups.contains(name)) {
         log::error("Backup plan not found: '{}'", name);
         return;
@@ -70,8 +72,11 @@ void BackupService::tick() {
 void BackupService::readPlans() {
     m_ports.planRepo().forEach([&](const auto& plan) {
         log::info("Loaded backup plan: '{}'", plan.name);
-        for (const auto& filter : plan.filters) {
-            log::info("\tFilter: '{}'", filter.str());
+        for (const auto& source : plan.sources) {
+            log::info("\tSource: '{}'", source.root.str());
+            for (const auto& include : source.includes) {
+                log::info("\t\tInclude: '{}'", include);
+            }
         }
         m_backups[plan.name] = Backup{plan};
     });

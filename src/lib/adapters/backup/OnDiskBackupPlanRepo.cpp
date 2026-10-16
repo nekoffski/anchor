@@ -40,19 +40,53 @@ Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
     }
     plan.archiveType = *archiveType;
 
-    const auto filters = (*file)["filters"];
-    if (not filters.IsDefined() or not filters.IsSequence()) {
+    const auto sources = (*file)["sources"];
+    if (not sources.IsDefined() or not sources.IsSequence()) {
         return Error::unexpected(
-            ErrorCode::invalidConfig, "Missing or invalid field: filters"
+            ErrorCode::invalidConfig, "Missing or invalid field: sources"
         );
     }
-    for (const auto& filter : filters) {
-        if (not filter.IsScalar()) {
+
+    for (const auto& source : sources) {
+        if (not source.IsDefined()) {
             return Error::unexpected(
-                ErrorCode::invalidConfig, "Expected a scalar in filters"
+                ErrorCode::invalidConfig, "Invalid source in sources"
             );
         }
-        plan.filters.emplace_back(filter.Scalar());
+        if (not source.IsMap()) {
+            return Error::unexpected(
+                ErrorCode::invalidConfig, "Expected a map in sources"
+            );
+        }
+
+        const auto& root = source["root"];
+
+        if (not root.IsDefined() || not root.IsScalar()) {
+            return Error::unexpected(
+                ErrorCode::invalidConfig, "Missing or invalid field: root"
+            );
+        }
+
+        const auto& includes = source["includes"];
+
+        if (not includes.IsDefined() || not includes.IsSequence()) {
+            return Error::unexpected(
+                ErrorCode::invalidConfig, "Missing or invalid field: includes"
+            );
+        }
+
+        Source src;
+        src.root = Path{root.Scalar()}.resolveEnv();
+
+        for (const auto& include : includes) {
+            if (not include.IsScalar()) {
+                return Error::unexpected(
+                    ErrorCode::invalidConfig, "Expected a scalar in includes"
+                );
+            }
+            src.includes.emplace_back(include.Scalar());
+        }
+        plan.sources.emplace_back(src);
     }
 
     return plan;

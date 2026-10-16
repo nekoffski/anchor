@@ -51,7 +51,6 @@ TEST_F(FileSystemTest, CreatesDirectoriesAndDistinguishesFilesFromDirectories) {
     const auto directory = path("nested/child");
     auto created = fs.createDirectory(directory);
     ASSERT_TRUE(created);
-    EXPECT_EQ(created->str(), directory.str());
     EXPECT_TRUE(fs.createDirectory(directory));
     EXPECT_TRUE(fs.exists(directory));
     EXPECT_TRUE(fs.isDirectory(directory));
@@ -123,6 +122,46 @@ TEST_F(FileSystemTest, CopiesFilesWithoutOverwritingAndReportsFailures) {
     EXPECT_EQ(*fs.readFile(target), "original");
     EXPECT_FALSE(fs.copyFile(path("absent"), path("new")));
     EXPECT_FALSE(fs.copyFile(source, path("missing/target")));
+}
+
+TEST_F(FileSystemTest, CopyRecursiveCopiesFilesAndNestedDirectories) {
+    ASSERT_TRUE(fs.createDirectory(path("source/nested")));
+    ASSERT_TRUE(fs.createDirectory(path("source/empty")));
+    ASSERT_TRUE(fs.writeFile(path("source/nested/file"), "content"));
+    ASSERT_TRUE(
+        fs.copyRecursive(path("source/nested/file"), path("file-copy"))
+    );
+    auto file = fs.readFile(path("file-copy"));
+    ASSERT_TRUE(file);
+    EXPECT_EQ(*file, "content");
+
+    ASSERT_TRUE(fs.copyRecursive(path("source"), path("directory-copy")));
+    auto nested = fs.readFile(path("directory-copy/nested/file"));
+    ASSERT_TRUE(nested);
+    EXPECT_EQ(*nested, "content");
+    EXPECT_TRUE(fs.isDirectory(path("directory-copy/empty")));
+    EXPECT_TRUE(fs.exists(path("source/nested/file")));
+}
+
+TEST_F(FileSystemTest, CopyRecursiveRejectsMissingSourcesAndPreservesTargets) {
+    auto missing = fs.copyRecursive(path("absent"), path("target"));
+    ASSERT_FALSE(missing);
+    EXPECT_EQ(missing.error().code(), ErrorCode::fileSystemError);
+    EXPECT_THAT(missing.error().message(), HasSubstr(path("absent").str()));
+    EXPECT_FALSE(fs.exists(path("target")));
+
+    ASSERT_TRUE(fs.writeFile(path("target"), "preserved"));
+    ASSERT_TRUE(fs.writeFile(path("source-file"), "replacement"));
+    ASSERT_TRUE(fs.createDirectory(path("source-directory")));
+    for (const auto* source : {"source-file", "source-directory"}) {
+        SCOPED_TRACE(source);
+        auto result = fs.copyRecursive(path(source), path("target"));
+        ASSERT_FALSE(result);
+        EXPECT_EQ(result.error().code(), ErrorCode::fileSystemError);
+        auto target = fs.readFile(path("target"));
+        ASSERT_TRUE(target);
+        EXPECT_EQ(*target, "preserved");
+    }
 }
 
 TEST_F(FileSystemTest, CopiesDirectoryTreesAndListsOnlyMatchingEntryTypes) {

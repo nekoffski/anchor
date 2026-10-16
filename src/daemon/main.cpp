@@ -23,7 +23,9 @@ int main(int argc, const char** argv) {
 
     log::init(
         log::LoggerOptions{
-            .formatPattern = "%^[%d-%m-%Y %T] [Th: %t] %-7l [anchord]: %v %$"
+            .enableColors = false,
+            .level = log::Level::debug,
+            .formatPattern = "%^[%d-%m-%Y %T] [Th: %t] %-7l [anchord]: %v %$",
         }
     );
     log::info("daemon starting");

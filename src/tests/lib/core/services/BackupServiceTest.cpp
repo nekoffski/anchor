@@ -64,6 +64,21 @@ TEST_F(BackupServiceTest, MissingStoreDoesNotCreateRun) {
     EXPECT_FALSE(runs.has("daily"));
 }
 
+TEST_F(BackupServiceTest, MarksRunStartingBeforeSchedulingWork) {
+    addSnapshotter();
+    addStore();
+    MoveOnlyFunction<void()> work;
+    EXPECT_CALL(executor, call(_)).WillOnce(Invoke([&](auto callback) {
+        auto status = runs.get("daily");
+        ASSERT_TRUE(status);
+        EXPECT_EQ(status->state, BackupRunState::starting);
+        work = std::move(callback);
+    }));
+    service->triggerBackup("daily");
+    ASSERT_TRUE(work);
+    service->triggerBackup("daily");
+}
+
 TEST_F(
     BackupServiceTest, MarksRunStartingBeforeSchedulingAndCompletesDeferredWork
 ) {
@@ -80,10 +95,13 @@ TEST_F(
     ASSERT_TRUE(work);
     service->triggerBackup("daily");
     EXPECT_CALL(fs, createDirectory(_))
-        .WillOnce(Invoke([](const Path& path) -> Result<Path> {
+        .WillOnce(Invoke([](const Path& path) -> Result<void> {
             EXPECT_EQ(path.parent().str(), "/workspace");
-            return path;
+            return {};
         }));
+    EXPECT_CALL(fs, glob("/source/file.txt"))
+        .WillOnce(Return(std::vector<Path>{"/source/file.txt"}));
+    EXPECT_CALL(fs, isDirectory(_)).WillOnce(Return(false));
     EXPECT_CALL(*snapshotter, snapshot(_))
         .WillOnce(
             Invoke([&](const SnapshotArgs& args) -> Result<SnapshotMetadata> {

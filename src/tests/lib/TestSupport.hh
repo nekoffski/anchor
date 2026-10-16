@@ -63,13 +63,19 @@ class ScopedEnv {
 class MockFileSystem : public FileSystem {
    public:
     MOCK_METHOD(bool, exists, (const Path&), (const, override));
+    MOCK_METHOD(bool, isFile, (const Path&), (const, override));
+    MOCK_METHOD(std::vector<Path>, glob, (const Str&), (const, override));
     MOCK_METHOD(Result<Str>, readFile, (const Path&), (const, override));
     MOCK_METHOD(bool, isDirectory, (const Path&), (const, override));
     MOCK_METHOD(
         Result<std::vector<Path>>, listFiles, (const Path&), (const, override)
     );
     MOCK_METHOD(
-        Result<Path>, createDirectory, (const Path&), (const, override)
+        Result<void>, createDirectory, (const Path&), (const, override)
+    );
+    MOCK_METHOD(
+        Result<void>, copyRecursive, (const Path&, const Path&),
+        (const, override)
     );
     MOCK_METHOD(
         Result<void>, copyFile, (const Path&, const Path&), (const, override)
@@ -122,7 +128,7 @@ inline BackupPlan plan() {
         .name = "daily",
         .archiveType = ArchiveType::directory,
         .destination = Location::local("/backups"),
-        .filters = {Path{"/source"}}
+        .sources = {Source{.root = "/source", .includes = {"file.txt"}}}
     };
 }
 

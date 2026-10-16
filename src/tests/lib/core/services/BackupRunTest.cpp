@@ -19,12 +19,17 @@ class BackupRunTest : public Test {
 
     void expectWorkspace() {
         EXPECT_CALL(fs, createDirectory(_))
-            .WillOnce(Invoke([&](const Path& path) -> Result<Path> {
+            .WillOnce(Invoke([&](const Path& path) -> Result<void> {
                 created = path.str();
                 EXPECT_EQ(path.parent().str(), workspace.str());
                 EXPECT_TRUE(uuids::uuid::is_valid_uuid(path.filename()));
-                return path;
+                return {};
             }));
+    }
+    void expectSourceTree() {
+        EXPECT_CALL(fs, glob("/source/file.txt"))
+            .WillOnce(Return(std::vector<Path>{"/source/file.txt"}));
+        EXPECT_CALL(fs, isDirectory(_)).WillOnce(Return(false));
     }
     void expectState(BackupRunState state) {
         EXPECT_CALL(runs, put("daily", Field(&BackupRunStatus::state, state)));
@@ -50,13 +55,23 @@ TEST_F(BackupRunTest, SuccessTransitionsInOrderAndCleansWorkspace) {
     InSequence sequence;
     expectWorkspace();
     expectState(BackupRunState::snapshotting);
+    expectSourceTree();
     EXPECT_CALL(snapshotter, snapshot(_))
         .WillOnce(
             Invoke([&](const SnapshotArgs& args) -> Result<SnapshotMetadata> {
                 EXPECT_EQ(args.name, backup.name);
-                EXPECT_EQ(args.filters.size(), 1);
-                if (args.filters.size() == 1) {
-                    EXPECT_EQ(args.filters[0].str(), "/source");
+                EXPECT_EQ(args.trees.size(), 1);
+                if (args.trees.size() == 1) {
+                    const auto& tree = args.trees.front();
+                    EXPECT_EQ(tree.root.str(), "/source");
+                    EXPECT_EQ(tree.nodes.size(), 1);
+                    EXPECT_TRUE(tree.nodes.contains("file.txt"));
+                    if (tree.nodes.contains("file.txt")) {
+                        const auto& file = tree.nodes.at("file.txt");
+                        EXPECT_EQ(file.name, "file.txt");
+                        EXPECT_EQ(file.type, SourceTree::NodeType::file);
+                        EXPECT_TRUE(file.children.empty());
+                    }
                 }
                 EXPECT_EQ(args.workspace.str(), created);
                 return metadata;
@@ -102,6 +117,7 @@ TEST_F(BackupRunTest, SnapshotFailureIsStoredAndWorkspaceIsCleaned) {
     InSequence sequence;
     expectWorkspace();
     expectState(BackupRunState::snapshotting);
+    expectSourceTree();
     EXPECT_CALL(snapshotter, snapshot(_))
         .WillOnce(
             Return(Error::unexpected(ErrorCode::fileNotFound, "source missing"))
@@ -122,6 +138,7 @@ TEST_F(BackupRunTest, StoreFailureIsStoredAndWorkspaceIsCleaned) {
     InSequence sequence;
     expectWorkspace();
     expectState(BackupRunState::snapshotting);
+    expectSourceTree();
     EXPECT_CALL(snapshotter, snapshot(_)).WillOnce(Return(metadata));
     expectState(BackupRunState::uploading);
     EXPECT_CALL(store, put(_, _))
@@ -141,6 +158,7 @@ TEST_F(BackupRunTest, CleanupFailureDoesNotReplaceSuccessfulBackupState) {
     InSequence sequence;
     expectWorkspace();
     expectState(BackupRunState::snapshotting);
+    expectSourceTree();
     EXPECT_CALL(snapshotter, snapshot(_)).WillOnce(Return(metadata));
     expectState(BackupRunState::uploading);
     EXPECT_CALL(store, put(_, _)).WillOnce(Return(metadata));

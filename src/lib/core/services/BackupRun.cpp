@@ -1,5 +1,6 @@
 #include "BackupRun.hh"
 
+#include "SourceTreeBuilder.hh"
 #include "base/Functional.hh"
 #include "base/Random.hh"
 
@@ -32,10 +33,12 @@ void BackupRun::start() {
 
     update(BackupRunState::snapshotting);
 
+    auto trees = SourceTreeBuilder::build(m_fs, m_plan.sources);
+
     auto metadata = m_snapshotter.snapshot(
         SnapshotArgs{
             .name = m_plan.name,
-            .filters = m_plan.filters,
+            .trees = trees,
             .workspace = m_workspace,
         }
     );

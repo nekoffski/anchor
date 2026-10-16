@@ -31,35 +31,38 @@ TEST_F(ConfigTest, PlanRepoParsesPlansAndSkipsReportedErrors) {
         settings:
           destination: local:///backup
           archive: directory
-        filters:
-          - /one
-          - $ANCHOR_TEST_PATH/two
+        sources:
+          - root: /one
+            includes: ["", "*.txt"]
+          - root: $ANCHOR_TEST_PATH/two
+            includes: []
     )"));
     const std::vector<Str> invalid{
         "settings: [unterminated",
         "{}",
-        "settings: null\nfilters: []",
-        "settings: scalar\nfilters: []",
-        "settings: [directory]\nfilters: []",
-        "settings: {archive: directory}\nfilters: []",
-        "settings: {destination: ftp://bad, archive: directory}\nfilters: []",
-        "settings: {destination: local:///backup}\nfilters: []",
-        "settings: {destination: local:///backup, archive: rar}\nfilters: []",
+        "settings: null\nsources: []",
+        "settings: scalar\nsources: []",
+        "settings: [directory]\nsources: []",
+        "settings: {archive: directory}\nsources: []",
+        "settings: {destination: ftp://bad, archive: directory}\nsources: []",
+        "settings: {destination: local:///backup}\nsources: []",
+        "settings: {destination: local:///backup, archive: rar}\nsources: []",
         "settings: {destination: local:///backup, archive: "
-        "directory}\nfilters: bad",
+        "directory}\nsources: bad",
         "settings: {destination: local:///backup, archive: directory}",
         "settings: {destination: local:///backup, archive: "
-        "directory}\nfilters: [valid, {}]",
+        "directory}\nsources: [valid, {}]",
         "settings: {destination: local:///backup, archive: "
-        "directory}\nfilters: [null]",
-        "settings: {destination: null, archive: directory}\nfilters: []",
-        "settings: {destination: local:///backup, archive: null}\nfilters: []",
+        "directory}\nsources: [null]",
+        "settings: {destination: null, archive: directory}\nsources: []",
+        "settings: {destination: local:///backup, archive: null}\nsources: []",
     };
     for (size_t i = 0; i < invalid.size(); ++i) {
         ASSERT_TRUE(
             fs.writeFile(path(fmt::format("invalid{}.yaml", i)), invalid[i])
         );
     }
+    ScopedEnv env{"ANCHOR_TEST_PATH", "1337"};
     OnDiskBackupPlanRepo repo{root, fs};
     std::vector<BackupPlan> plans;
     repo.forEach([&](const BackupPlan& plan) { plans.push_back(plan); });
@@ -68,22 +71,57 @@ TEST_F(ConfigTest, PlanRepoParsesPlansAndSkipsReportedErrors) {
     EXPECT_EQ(plan.name, "daily");
     EXPECT_EQ(plan.archiveType, ArchiveType::directory);
     EXPECT_EQ(plan.destination.str(), "local:///backup");
-    ASSERT_EQ(plan.filters.size(), 2);
-    EXPECT_EQ(plan.filters[0].str(), "/one");
-    EXPECT_EQ(plan.filters[1].str(), "$ANCHOR_TEST_PATH/two");
+    ASSERT_EQ(plan.sources.size(), 2);
+    EXPECT_EQ(plan.sources[0].root.str(), "/one");
+    EXPECT_EQ(plan.sources[1].root.str(), "1337/two");
+    EXPECT_THAT(plan.sources[0].includes, ElementsAre("", "*.txt"));
+    EXPECT_TRUE(plan.sources[1].includes.empty());
 }
 
-TEST_F(ConfigTest, PlanRepoParsesYmlPlansWithEmptyFilters) {
+TEST_F(ConfigTest, PlanRepoParsesYmlPlansWithEmptySources) {
     ASSERT_TRUE(fs.writeFile(path("empty.yml"), R"(
         settings: {destination: local:///backup, archive: directory}
-        filters: []
+        sources: []
     )"));
     OnDiskBackupPlanRepo repo{root, fs};
     std::vector<BackupPlan> plans;
     repo.forEach([&](const BackupPlan& plan) { plans.push_back(plan); });
     ASSERT_EQ(plans.size(), 1);
     EXPECT_EQ(plans.front().name, "empty");
-    EXPECT_TRUE(plans.front().filters.empty());
+    EXPECT_TRUE(plans.front().sources.empty());
+}
+
+TEST_F(ConfigTest, PlanRepoRejectsMalformedSourcesAndIncludes) {
+    const std::vector<Str> invalid{
+        "sources: null",
+        "sources: {}",
+        "sources: [/one]",
+        "sources: [null]",
+        "sources: [{}]",
+        "sources: [{root: null, includes: []}]",
+        "sources: [{root: [], includes: []}]",
+        "sources: [{root: {}, includes: []}]",
+        "sources: [{root: /one}]",
+        "sources: [{root: /one, includes: null}]",
+        "sources: [{root: /one, includes: text}]",
+        "sources: [{root: /one, includes: {}}]",
+        "sources: [{root: /one, includes: [valid, null]}]",
+        "sources: [{root: /one, includes: [valid, {}]}]",
+        "sources: [{root: /one, includes: [valid, []]}]",
+        "sources: [{root: /one, includes: []}, {}]",
+    };
+    OnDiskBackupPlanRepo repo{root, fs};
+    for (const auto& sources : invalid) {
+        SCOPED_TRACE(sources);
+        ASSERT_TRUE(fs.writeFile(
+            path("invalid.yaml"),
+            "settings: {destination: local:///backup, archive: directory}\n" +
+                sources
+        ));
+        repo.forEach([](const BackupPlan&) {
+            FAIL() << "invalid sources must reject the whole plan";
+        });
+    }
 }
 
 TEST_F(ConfigTest, PlanRepoPropagatesListingErrorsAndSkipsIteration) {

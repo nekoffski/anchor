@@ -3,6 +3,7 @@
 #include <fmt/core.h>
 
 #include "Location.hh"
+#include "Source.hh"
 #include "base/Concepts.hh"
 #include "base/Core.hh"
 #include "base/FileSystem.hh"
@@ -14,13 +15,11 @@ enum class ArchiveType { directory, zip, tgz };
 Result<ArchiveType> archiveTypeFromStr(const Str& str);
 Str archiveTypeToStr(ArchiveType type);
 
-using Filter = Path;
-
 struct BackupPlan {
     Str name;
     ArchiveType archiveType;
     Location destination;
-    std::vector<Filter> filters;
+    std::vector<Source> sources;
 };
 
 enum class BackupRunState {

@@ -2,6 +2,8 @@
 
 #include <filesystem>
 #include <fstream>
+#include <glob/glob.hpp>
+#include <ranges>
 #include <sstream>
 
 #include "Env.hh"
@@ -25,6 +27,18 @@ bool FileSystem::isDirectory(const Path& path) const {
 bool FileSystem::exists(const Path& path) const {
     std::error_code ec;
     return fs::exists(path.str(), ec);
+}
+
+Result<void> FileSystem::copyRecursive(const Path& from, const Path& to) const {
+    if (isDirectory(from)) {
+        return copyDirectoryRecursive(from, to);
+    } else if (isFile(from)) {
+        return copyFile(from, to);
+    }
+    return Error::unexpected(
+        ErrorCode::fileSystemError,
+        "Source '{}' is neither a file nor a directory", from.str()
+    );
 }
 
 Result<void> FileSystem::copyFile(const Path& from, const Path& to) const {
@@ -52,6 +66,12 @@ Result<void> FileSystem::copyDirectoryRecursive(
         );
     }
     return {};
+}
+
+std::vector<Path> FileSystem::glob(const Str& pattern) const {
+    return glob::glob(pattern) |
+           std::views::transform([](const auto& p) { return Path(p); }) |
+           std::ranges::to<std::vector<Path>>();
 }
 
 namespace {
@@ -125,7 +145,7 @@ Result<void> FileSystem::touch(const Path& path) const {
     return {};
 }
 
-Result<Path> FileSystem::createDirectory(const Path& path) const {
+Result<void> FileSystem::createDirectory(const Path& path) const {
     std::error_code ec;
     fs::create_directories(path.str(), ec);
     if (ec) {
@@ -134,7 +154,7 @@ Result<Path> FileSystem::createDirectory(const Path& path) const {
             path.str()
         );
     }
-    return path;
+    return {};
 }
 
 Result<void> FileSystem::appendFile(
@@ -262,6 +282,10 @@ Path Path::join(const Path& base, const Path& relative) {
 
 Path Path::cwd() { return Path{fs::current_path().string()}; }
 
+Str Path::lexicallyRelative(const Path& base) const {
+    return fs::path(m_path).lexically_relative(fs::path(base.str())).string();
+}
+
 Path Path::resolveEnv() const {
     auto path = m_path;
     auto parts = split(path, "/");
@@ -274,6 +298,10 @@ Path Path::resolveEnv() const {
         }
     }
     return anchor::join(parts, "/");
+}
+
+bool Path::startsWith(const Str& prefix) const {
+    return m_path.starts_with(prefix);
 }
 
 bool Path::endsWith(const Str& suffix) const {

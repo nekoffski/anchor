@@ -34,6 +34,7 @@ add_library(anchor STATIC
     "core/services/BackupService.cpp"
     "core/services/BackupServiceRunner.cpp"
     "core/services/BackupRun.cpp"
+    "core/services/SourceTreeBuilder.cpp"
     # -- domain
     "core/domain/Backup.cpp"
     "core/domain/Location.cpp"
@@ -51,6 +52,8 @@ find_package(nlohmann_json CONFIG REQUIRED)
 find_package(asio CONFIG REQUIRED)
 find_package(yaml-cpp CONFIG REQUIRED)
 find_package(LibArchive CONFIG REQUIRED)
+find_package(p-ranav-glob CONFIG REQUIRED)
+
 
 target_link_libraries(anchor
     PUBLIC
@@ -61,6 +64,7 @@ target_link_libraries(anchor
         asio::asio
         yaml-cpp::yaml-cpp
         LibArchive::LibArchive
+        p-ranav-glob::p-ranav-glob
 )
 
 if (ANCHOR_ENABLE_PROFILING)
