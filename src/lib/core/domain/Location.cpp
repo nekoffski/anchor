@@ -50,8 +50,8 @@ Location Location::s3(const Str& path) {
     return Location{.type = LocationType::s3, .path = path};
 }
 
-Location Location::local(const Str& path) {
-    return Location{.type = LocationType::local, .path = path};
+Location Location::local(const Path& path) {
+    return Location{.type = LocationType::local, .path = path.str()};
 }
 
 Str Location::str() const {

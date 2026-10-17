@@ -59,7 +59,7 @@ TEST_F(BackupRunTest, SuccessTransitionsInOrderAndCleansWorkspace) {
     EXPECT_CALL(snapshotter, snapshot(_))
         .WillOnce(
             Invoke([&](const SnapshotArgs& args) -> Result<SnapshotMetadata> {
-                EXPECT_EQ(args.name, backup.name);
+                EXPECT_THAT(args.name, StartsWith(backup.name + "_"));
                 EXPECT_EQ(args.trees.size(), 1);
                 if (args.trees.size() == 1) {
                     const auto& tree = args.trees.front();
@@ -69,6 +69,7 @@ TEST_F(BackupRunTest, SuccessTransitionsInOrderAndCleansWorkspace) {
                     if (tree.nodes.contains("file.txt")) {
                         const auto& file = tree.nodes.at("file.txt");
                         EXPECT_EQ(file.name, "file.txt");
+                        EXPECT_EQ(file.relativePath, "file.txt");
                         EXPECT_EQ(file.type, SourceTree::NodeType::file);
                         EXPECT_TRUE(file.children.empty());
                     }

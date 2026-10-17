@@ -1,5 +1,6 @@
 
 #include "adapters/asio/AsioServer.hh"
+#include "adapters/backup/ArchiveSnapshotter.hh"
 #include "adapters/backup/DirectorySnapshotter.hh"
 #include "adapters/backup/InMemoryBackupRunRepo.hh"
 #include "adapters/backup/OnDiskBackupPlanRepo.hh"
@@ -44,6 +45,7 @@ int main(int argc, const char** argv) {
 
     Snapshotters snapshotters;
     snapshotters.add<DirectorySnapshotter>(ArchiveType::directory, fs);
+    snapshotters.add<ZipSnapshotter>(ArchiveType::zip, fs);
 
     SnapshotStores snapshotStores;
     snapshotStores.add<OnDiskSnapshotStore>(LocationType::local, fs);

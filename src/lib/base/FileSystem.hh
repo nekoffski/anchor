@@ -55,6 +55,7 @@ class FileSystem : public NonCopyable, public NonMovable {
     virtual Result<void> copyDirectoryRecursive(
         const Path& from, const Path& to
     ) const;
+    virtual Result<u64> fileSize(const Path& path) const;
 
     virtual std::vector<Path> glob(const Str& pattern) const;
 

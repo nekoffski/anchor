@@ -23,6 +23,7 @@ struct SourceTree {
 
     struct Node {
         NodeType type;
+        Str relativePath;
         Str name;
         Nodes children;
     };

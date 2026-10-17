@@ -9,6 +9,8 @@ DirectorySnapshotter::DirectorySnapshotter(const FileSystem& fs) : m_fs(fs) {}
 Result<void> DirectorySnapshotter::traverse(
     const Path& source, const Path& destination, const SourceTree::Nodes& nodes
 ) {
+    // TODO: refactor to use the relative path stored in node
+
     if (nodes.empty()) {  // leaf, copy and return
         if (auto r = m_fs.copyRecursive(source, destination); not r) {
             log::error(
@@ -40,9 +42,7 @@ Result<SnapshotMetadata> DirectorySnapshotter::snapshot(
     const SnapshotArgs& args
 ) {
     const auto& [name, trees, workspace] = args;
-
-    const auto snapshotName = newSnapshotName(name);
-    const auto path = Path::join(workspace, snapshotName);
+    const auto path = Path::join(workspace, name);
 
     if (auto result = m_fs.createDirectory(path); not result) {
         return Error::unexpected(result.error());
@@ -58,15 +58,10 @@ Result<SnapshotMetadata> DirectorySnapshotter::snapshot(
     }
 
     SnapshotMetadata metadata{
-        .name = snapshotName, .location = Location::local(path.str())
+        .name = name, .location = Location::local(path.str())
     };
 
     return metadata;
-}
-
-Str DirectorySnapshotter::newSnapshotName(const Str& backupName) {
-    const auto ts = std::chrono::system_clock::now();
-    return fmt::format("{}_{}", backupName, ts.time_since_epoch().count());
 }
 
 }  // namespace anchor

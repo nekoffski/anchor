@@ -14,6 +14,11 @@ BackupRun::BackupRun(const BackupRunArgs& args)
       m_fs(args.fs),
       m_workspace(Path::join(args.workspace, uuid())) {}
 
+Str newSnapshotName(const Str& backupName) {
+    const auto ts = std::chrono::system_clock::now();
+    return fmt::format("{}_{}", backupName, ts.time_since_epoch().count());
+}
+
 void BackupRun::start() {
     if (not m_fs.createDirectory(m_workspace)) {
         fail(
@@ -37,7 +42,7 @@ void BackupRun::start() {
 
     auto metadata = m_snapshotter.snapshot(
         SnapshotArgs{
-            .name = m_plan.name,
+            .name = newSnapshotName(m_plan.name),
             .trees = trees,
             .workspace = m_workspace,
         }

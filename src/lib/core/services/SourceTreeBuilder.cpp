@@ -59,6 +59,7 @@ SourceTree SourceTreeBuilder::build(
             auto& node = (*level)[component];
 
             node.name = component;
+            node.relativePath = root.lexicallyRelative(source.root);
             node.type = fs.isDirectory(root) ? SourceTree::NodeType::directory
                                              : SourceTree::NodeType::file;
             level = &node.children;

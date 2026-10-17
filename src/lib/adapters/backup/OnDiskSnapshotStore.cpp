@@ -16,10 +16,10 @@ Result<SnapshotMetadata> OnDiskSnapshotStore::put(
     const auto& from = Path{metadata.location.path}.resolveEnv();
     const auto& to = Path::join(destination.path, metadata.name).resolveEnv();
 
-    if (not m_fs.copyDirectoryRecursive(from, to)) {
+    if (auto r = m_fs.copyRecursive(from, to); not r) {
         return Error::unexpected(
-            ErrorCode::fileSystemError,
-            "Failed to copy directory from '{}' to '{}'", from.str(), to.str()
+            ErrorCode::fileSystemError, "Failed to copy from '{}' to '{}' - {}",
+            from.str(), to.str(), r.error()
         );
     }
 

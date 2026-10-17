@@ -3,6 +3,7 @@
 #include "base/Concepts.hh"
 #include "base/Core.hh"
 #include "base/Error.hh"
+#include "base/FileSystem.hh"
 
 namespace anchor {
 
@@ -16,7 +17,7 @@ struct Location {
     Str path;
 
     static Location s3(const Str& path);
-    static Location local(const Str& path);
+    static Location local(const Path& path);
     static Result<Location> fromStr(const Str& str);
 
     Str str() const;

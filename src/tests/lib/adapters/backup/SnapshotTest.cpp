@@ -35,7 +35,7 @@ TEST_F(SnapshotTest, CopiesNestedFilesAndDirectoryLeavesAcrossSources) {
     const auto workspace = path("workspace");
     auto snapshot = snapshotter.snapshot({name, trees, workspace});
     ASSERT_TRUE(snapshot);
-    EXPECT_THAT(snapshot->name, StartsWith("daily_"));
+    EXPECT_EQ(snapshot->name, name);
     EXPECT_EQ(snapshot->location.type, LocationType::local);
     const auto snapshotPath = Path::join(workspace, snapshot->name);
     EXPECT_EQ(snapshot->location.path, snapshotPath.str());
@@ -67,7 +67,7 @@ TEST(DirectorySnapshotter, EmptySourcesProduceAnEmptySnapshot) {
     const Path workspace{"/workspace"};
     auto result = snapshotter.snapshot({name, {}, workspace});
     ASSERT_TRUE(result);
-    EXPECT_THAT(result->name, StartsWith("empty_"));
+    EXPECT_EQ(result->name, name);
     EXPECT_EQ(result->location.path, Path::join(workspace, result->name).str());
 }
 
@@ -92,7 +92,13 @@ TEST(DirectorySnapshotter, CreationFailureStopsBeforeCopying) {
     const Path workspace{"/workspace"};
     const std::vector<SourceTree> trees{
         {.root = "/source",
-         .nodes = {{"file", {SourceTree::NodeType::file, "file", {}}}}}
+         .nodes = {
+             {"file",
+              {.type = SourceTree::NodeType::file,
+               .relativePath = "file",
+               .name = "file",
+               .children = {}}}
+         }}
     };
     auto result = snapshotter.snapshot({name, trees, workspace});
     ASSERT_FALSE(result);
@@ -118,9 +124,15 @@ TEST(DirectorySnapshotter, NestedDirectoryCreationFailureStopsBeforeCopying) {
         {.root = "/source",
          .nodes = {
              {"docs",
-              {SourceTree::NodeType::directory,
-               "docs",
-               {{"file", {SourceTree::NodeType::file, "file", {}}}}}}
+              {.type = SourceTree::NodeType::directory,
+               .relativePath = "docs",
+               .name = "docs",
+               .children =
+                   {{"file",
+                     {.type = SourceTree::NodeType::file,
+                      .relativePath = "docs/file",
+                      .name = "file",
+                      .children = {}}}}}}
          }}
     };
     auto result = snapshotter.snapshot({name, trees, workspace});
@@ -149,9 +161,20 @@ TEST(DirectorySnapshotter, CopyFailureStopsAndPreservesError) {
     const Path workspace{"/workspace"};
     const std::vector<SourceTree> trees{
         {.root = "/source",
-         .nodes = {{"missing", {SourceTree::NodeType::file, "missing", {}}}}},
+         .nodes =
+             {{"missing",
+               {.type = SourceTree::NodeType::file,
+                .relativePath = "missing",
+                .name = "missing",
+                .children = {}}}}},
         {.root = "/other",
-         .nodes = {{"never", {SourceTree::NodeType::file, "never", {}}}}}
+         .nodes = {
+             {"never",
+              {.type = SourceTree::NodeType::file,
+               .relativePath = "never",
+               .name = "never",
+               .children = {}}}
+         }}
     };
     auto result = snapshotter.snapshot({name, trees, workspace});
     ASSERT_FALSE(result);
@@ -179,7 +202,13 @@ TEST(DirectorySnapshotter, DirectoryCopyFailurePreservesError) {
     const Path workspace{"/workspace"};
     const std::vector<SourceTree> trees{
         {.root = "/source",
-         .nodes = {{"assets", {SourceTree::NodeType::directory, "assets", {}}}}}
+         .nodes = {
+             {"assets",
+              {.type = SourceTree::NodeType::directory,
+               .relativePath = "assets",
+               .name = "assets",
+               .children = {}}}
+         }}
     };
     auto result = snapshotter.snapshot({name, trees, workspace});
     ASSERT_FALSE(result);
@@ -195,7 +224,7 @@ TEST(OnDiskSnapshotStore, CopiesResolvedPathsAndReturnsDestinationMetadata) {
         "daily_123", Location::local("/workspace/daily_123")
     };
     auto destination = Location::local("$ANCHOR_TEST_STORE");
-    EXPECT_CALL(fs, copyDirectoryRecursive(_, _))
+    EXPECT_CALL(fs, copyRecursive(_, _))
         .WillOnce(Invoke([](const Path& from, const Path& to) -> Result<void> {
             EXPECT_EQ(from.str(), "/workspace/daily_123");
             EXPECT_EQ(to.str(), "/backup/daily_123");
@@ -221,7 +250,7 @@ TEST(OnDiskSnapshotStore, RejectsRemoteDestinationBeforeCopying) {
 TEST(OnDiskSnapshotStore, CopyFailureReturnsFilesystemError) {
     StrictMock<MockFileSystem> fs;
     OnDiskSnapshotStore store{fs};
-    EXPECT_CALL(fs, copyDirectoryRecursive(_, _))
+    EXPECT_CALL(fs, copyRecursive(_, _))
         .WillOnce(
             Return(Error::unexpected(ErrorCode::fileSystemError, "copy failed"))
         );
@@ -260,12 +289,13 @@ TEST_F(SnapshotTest, EmptyIncludeCopiesTheWholeSourceRoot) {
     ASSERT_TRUE(fs.createDirectory(path("source/nested")));
     ASSERT_TRUE(fs.writeFile(path("source/nested/file.txt"), "whole root"));
     DirectorySnapshotter snapshotter{fs};
-    const Str name = "daily";
+    size_t index = 0;
     const auto workspace = path("workspace");
     for (const auto& includes : std::vector<std::vector<Str>>{
              {""}, {"", "nested/file.txt"}, {"nested/file.txt", ""}
          }) {
         SCOPED_TRACE(includes.front());
+        const auto name = fmt::format("daily_{}", index++);
         const auto tree =
             SourceTreeBuilder::build(fs, Source{path("source"), includes});
         auto snapshot =

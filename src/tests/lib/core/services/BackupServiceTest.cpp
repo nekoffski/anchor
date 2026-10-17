@@ -105,7 +105,7 @@ TEST_F(
     EXPECT_CALL(*snapshotter, snapshot(_))
         .WillOnce(
             Invoke([&](const SnapshotArgs& args) -> Result<SnapshotMetadata> {
-                EXPECT_EQ(args.name, "daily");
+                EXPECT_THAT(args.name, StartsWith("daily_"));
                 EXPECT_EQ(
                     runs.get("daily")->state, BackupRunState::snapshotting
                 );

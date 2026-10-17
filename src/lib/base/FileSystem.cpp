@@ -30,15 +30,17 @@ bool FileSystem::exists(const Path& path) const {
 }
 
 Result<void> FileSystem::copyRecursive(const Path& from, const Path& to) const {
+    if (not exists(from)) {
+        return Error::unexpected(
+            ErrorCode::fileSystemError, "Source '{}' does not exist", from.str()
+        );
+    }
+
     if (isDirectory(from)) {
         return copyDirectoryRecursive(from, to);
-    } else if (isFile(from)) {
+    } else {
         return copyFile(from, to);
     }
-    return Error::unexpected(
-        ErrorCode::fileSystemError,
-        "Source '{}' is neither a file nor a directory", from.str()
-    );
 }
 
 Result<void> FileSystem::copyFile(const Path& from, const Path& to) const {
@@ -66,6 +68,24 @@ Result<void> FileSystem::copyDirectoryRecursive(
         );
     }
     return {};
+}
+
+Result<u64> FileSystem::fileSize(const Path& path) const {
+    if (not isFile(path)) {
+        return Error::unexpected(
+            ErrorCode::fileSystemError, "Path '{}' is not a file", path.str()
+        );
+    }
+
+    std::error_code ec;
+    auto size = fs::file_size(path.str(), ec);
+    if (ec) {
+        return Error::unexpected(
+            ErrorCode::fileSystemError, "Failed to get size of '{}': {}",
+            path.str(), ec.message()
+        );
+    }
+    return size;
 }
 
 std::vector<Path> FileSystem::glob(const Str& pattern) const {
