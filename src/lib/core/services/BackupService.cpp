@@ -15,27 +15,26 @@ BackupService::BackupService(
 Result<Uuid> BackupService::triggerBackup(const Str& name) {
     log::debug("Triggering backup: '{}'", name);
 
-    if (not m_backups.contains(name)) {
+    const auto backup = m_ports.backupRepo().get(name);
+    if (not backup) {
         log::error("Backup plan not found: '{}'", name);
         return Error::unexpected(
             ErrorCode::invalidArgument, "Backup plan not found"
         );
     }
 
-    const auto& backup = m_backups[name];
-
-    auto args = preflightBackup(backup);
+    auto args = preflightBackup(*backup);
 
     if (not args) {
         log::error("Failed to preflight backup: '{}'", name);
         return Error::unexpected(args.error());
     }
 
-    BackupRunStatus status{.state = BackupRunState::starting};
-    m_ports.runRepo().put(name, status);
-
     auto run = std::make_unique<BackupRun>(*args);
     const auto uuid = run->uuid();
+    m_ports.backupRepo().updateRunStatus(
+        name, BackupRunStatus{.state = BackupRunState::starting, .uuid = uuid}
+    );
 
     m_ports.executor().call([run = std::move(run)]() { run->start(); });
 
@@ -48,7 +47,7 @@ void BackupService::tick() {
 }
 
 Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {
-    if (m_ports.runRepo().has(backup.plan.name)) {
+    if (backup.run) {
         log::info("Backup '{}' is already running.", backup.plan.name);
         return Error::unexpected(
             ErrorCode::alreadyRunning, "Backup is already running"
@@ -81,7 +80,7 @@ Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {
 
     return BackupRunArgs{
         .plan = backup.plan,
-        .runRepo = m_ports.runRepo(),
+        .backupRepo = m_ports.backupRepo(),
         .snapshotter = *snapshotter,
         .snapshotStore = *store,
         .fs = m_fs,
@@ -98,21 +97,26 @@ void BackupService::readPlans() {
                 log::info("\t\tInclude: '{}'", include);
             }
         }
-        m_backups[plan.name] = Backup{plan};
+        auto backup =
+            m_ports.backupRepo().get(plan.name).value_or(Backup{plan});
+        backup.plan = plan;
+        m_ports.backupRepo().put(backup);
     });
 }
 
 void BackupService::scanBackupRuns() {
-    auto& runRepo = m_ports.runRepo();
+    auto& backupRepo = m_ports.backupRepo();
     std::vector<Str> completedBackups;
 
-    runRepo.forEach([&](const auto& name, const auto& status) {
-        if (status.state == BackupRunState::completed) {
-            log::debug("Backup '{}' has completed.", name);
-            completedBackups.push_back(name);
+    backupRepo.forEach([&](const Backup& backup) {
+        if (backup.run and backup.run->state == BackupRunState::completed) {
+            log::debug("Backup '{}' has completed.", backup.plan.name);
+            completedBackups.push_back(backup.plan.name);
         }
     });
-    runRepo.remove(completedBackups);
+    for (const auto& name : completedBackups) {
+        backupRepo.clearRunStatus(name);
+    }
 }
 
 }  // namespace anchor

@@ -27,8 +27,6 @@ class BackupService : public NonCopyable, public NonMovable {
     Config m_cfg;
     const FileSystem& m_fs;
     Ports m_ports;
-
-    std::unordered_map<Str, Backup> m_backups;
 };
 
 }  // namespace anchor

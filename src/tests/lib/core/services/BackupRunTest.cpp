@@ -7,7 +7,7 @@ using namespace testing;
 class BackupRunTest : public Test {
    protected:
     StrictMock<MockFileSystem> fs;
-    StrictMock<MockRunRepo> runs;
+    StrictMock<MockBackupRepo> backups;
     StrictMock<MockSnapshotter> snapshotter;
     StrictMock<MockSnapshotStore> store;
     BackupPlan backup = plan();
@@ -16,6 +16,7 @@ class BackupRunTest : public Test {
         "snapshot", Location::local("/workspace/snapshot")
     };
     Str created;
+    Uuid runUuid;
 
     void expectWorkspace() {
         EXPECT_CALL(fs, createDirectory(_))
@@ -32,7 +33,15 @@ class BackupRunTest : public Test {
         EXPECT_CALL(fs, isDirectory(_)).WillOnce(Return(false));
     }
     void expectState(BackupRunState state) {
-        EXPECT_CALL(runs, put("daily", Field(&BackupRunStatus::state, state)));
+        EXPECT_CALL(
+            backups,
+            updateRunStatus(
+                "daily", Truly([&, state](const BackupRunStatus& status) {
+                    return status.state == state and status.uuid == runUuid and
+                           not status.error;
+                })
+            )
+        );
     }
     void expectCleanup(bool fail = false) {
         EXPECT_CALL(fs, removeAll(_))
@@ -47,7 +56,9 @@ class BackupRunTest : public Test {
             }));
     }
     void start() {
-        BackupRun{{backup, runs, snapshotter, store, fs, workspace}}.start();
+        BackupRun run{{backup, backups, snapshotter, store, fs, workspace}};
+        runUuid = run.uuid();
+        run.start();
     }
 };
 
@@ -89,11 +100,11 @@ TEST_F(BackupRunTest, SuccessTransitionsInOrderAndCleansWorkspace) {
             }
         ));
     EXPECT_CALL(
-        runs, put("daily",
-                  AllOf(
-                      Field(&BackupRunStatus::state, BackupRunState::completed),
-                      Field(&BackupRunStatus::error, Eq(std::nullopt))
-                  ))
+        backups,
+        updateRunStatus("daily", Truly([&](const BackupRunStatus& status) {
+                            return status.state == BackupRunState::completed and
+                                   not status.error and status.uuid == runUuid;
+                        }))
     );
     expectCleanup();
     start();
@@ -105,12 +116,16 @@ TEST_F(BackupRunTest, WorkspaceFailureDoesNotSnapshotOrRemoveWorkspace) {
         .WillOnce(Return(
             Error::unexpected(ErrorCode::fileSystemError, "mkdir failed")
         ));
-    EXPECT_CALL(runs, put("daily", Truly([](const BackupRunStatus& status) {
-                              return status.state == BackupRunState::failed &&
-                                     status.error &&
-                                     status.error->code() ==
-                                         ErrorCode::fileSystemError;
-                          })));
+    EXPECT_CALL(
+        backups,
+        updateRunStatus("daily", Truly([&](const BackupRunStatus& status) {
+                            return status.uuid == runUuid &&
+                                   status.state == BackupRunState::failed &&
+                                   status.error &&
+                                   status.error->code() ==
+                                       ErrorCode::fileSystemError;
+                        }))
+    );
     start();
 }
 
@@ -123,14 +138,17 @@ TEST_F(BackupRunTest, SnapshotFailureIsStoredAndWorkspaceIsCleaned) {
         .WillOnce(
             Return(Error::unexpected(ErrorCode::fileNotFound, "source missing"))
         );
-    EXPECT_CALL(runs, put("daily", Truly([](const BackupRunStatus& status) {
-                              return status.state == BackupRunState::failed &&
-                                     status.error &&
-                                     status.error->code() ==
-                                         ErrorCode::fileNotFound &&
-                                     status.error->message() ==
-                                         "source missing";
-                          })));
+    EXPECT_CALL(
+        backups,
+        updateRunStatus("daily", Truly([&](const BackupRunStatus& status) {
+                            return status.uuid == runUuid &&
+                                   status.state == BackupRunState::failed &&
+                                   status.error &&
+                                   status.error->code() ==
+                                       ErrorCode::fileNotFound &&
+                                   status.error->message() == "source missing";
+                        }))
+    );
     expectCleanup();
     start();
 }
@@ -146,11 +164,15 @@ TEST_F(BackupRunTest, StoreFailureIsStoredAndWorkspaceIsCleaned) {
         .WillOnce(
             Return(Error::unexpected(ErrorCode::connectionFailure, "offline"))
         );
-    EXPECT_CALL(runs, put("daily", Truly([](const BackupRunStatus& status) {
-                              return status.state == BackupRunState::failed &&
-                                     status.error &&
-                                     status.error->message() == "offline";
-                          })));
+    EXPECT_CALL(
+        backups,
+        updateRunStatus("daily", Truly([&](const BackupRunStatus& status) {
+                            return status.uuid == runUuid &&
+                                   status.state == BackupRunState::failed &&
+                                   status.error &&
+                                   status.error->message() == "offline";
+                        }))
+    );
     expectCleanup();
     start();
 }

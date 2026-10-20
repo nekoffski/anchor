@@ -34,11 +34,13 @@ Str backupRunStateToString(BackupRunState state);
 struct BackupRunStatus {
     BackupRunState state;
     Opt<Error> error;
+    Uuid uuid;
 };
 
 struct Backup {
     BackupPlan plan;
     bool enabled{true};
+    Opt<BackupRunStatus> run;
     // snapshots etc..
 };
 

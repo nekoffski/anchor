@@ -2,7 +2,7 @@
 #include "adapters/asio/AsioServer.hh"
 #include "adapters/backup/ArchiveSnapshotter.hh"
 #include "adapters/backup/DirectorySnapshotter.hh"
-#include "adapters/backup/InMemoryBackupRunRepo.hh"
+#include "adapters/backup/InMemoryBackupRepo.hh"
 #include "adapters/backup/OnDiskBackupPlanRepo.hh"
 #include "adapters/backup/OnDiskSnapshotStore.hh"
 #include "adapters/executors/InlineExecutor.hh"
@@ -50,11 +50,11 @@ int main(int argc, const char** argv) {
     SnapshotStores snapshotStores;
     snapshotStores.add<OnDiskSnapshotStore>(LocationType::local, fs);
 
-    InMemoryBackupRunRepo backupRunRepo;
+    InMemoryBackupRepo backupRepo;
 
     InlineExecutor executor;
     Ports ports{
-        backupRunRepo, backupPlanRepo, snapshotters, snapshotStores, executor
+        backupRepo, backupPlanRepo, snapshotters, snapshotStores, executor
     };
 
     BackupService backupService{cfg, fs, ports};

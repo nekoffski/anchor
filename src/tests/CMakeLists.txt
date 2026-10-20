@@ -2,7 +2,7 @@ find_package(GTest CONFIG REQUIRED)
 
 add_executable(anchor-tests
     "lib/adapters/asio/AsioControllerTest.cpp"
-    "lib/adapters/backup/InMemoryBackupRunRepoTest.cpp"
+    "lib/adapters/backup/InMemoryBackupRepoTest.cpp"
     "lib/adapters/backup/OnDiskBackupPlanRepoTest.cpp"
     "lib/adapters/backup/SnapshotTest.cpp"
     "lib/base/ConfigTest.cpp"

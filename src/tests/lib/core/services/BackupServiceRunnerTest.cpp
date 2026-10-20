@@ -1,5 +1,5 @@
 #include "TestSupport.hh"
-#include "adapters/backup/InMemoryBackupRunRepo.hh"
+#include "adapters/backup/InMemoryBackupRepo.hh"
 #include "core/services/BackupServiceRunner.hh"
 
 namespace anchor::test {
@@ -8,7 +8,7 @@ using namespace std::chrono_literals;
 
 TEST(BackupServiceRunner, DispatchesQueuedRequestsAndResolvesResponses) {
     StrictMock<MockPlanRepo> plans;
-    InMemoryBackupRunRepo runs;
+    InMemoryBackupRepo backups;
     StrictMock<MockExecutor> executor;
     StrictMock<MockFileSystem> fs;
     Snapshotters snapshotters;
@@ -21,7 +21,7 @@ TEST(BackupServiceRunner, DispatchesQueuedRequestsAndResolvesResponses) {
     }));
     Config config;
     BackupService service{
-        config, fs, Ports{runs, plans, snapshotters, stores, executor}
+        config, fs, Ports{backups, plans, snapshotters, stores, executor}
     };
     RequestQueue queue;
     RequestSender sender{queue};
@@ -60,7 +60,7 @@ TEST(BackupServiceRunner, DispatchesQueuedRequestsAndResolvesResponses) {
         std::get<ErrorResponse>(missingResponse).error.code(),
         ErrorCode::invalidArgument
     );
-    auto status = runs.get("daily");
+    auto status = backups.getRunStatus("daily");
     ASSERT_TRUE(status);
     EXPECT_EQ(status->state, BackupRunState::starting);
     EXPECT_FALSE(queue.tryPop());
@@ -68,7 +68,7 @@ TEST(BackupServiceRunner, DispatchesQueuedRequestsAndResolvesResponses) {
 
 TEST(BackupServiceRunner, StoppingBeforeStartLeavesRequestsQueued) {
     StrictMock<MockPlanRepo> plans;
-    InMemoryBackupRunRepo runs;
+    InMemoryBackupRepo backups;
     StrictMock<MockExecutor> executor;
     StrictMock<MockFileSystem> fs;
     Snapshotters snapshotters;
@@ -76,7 +76,7 @@ TEST(BackupServiceRunner, StoppingBeforeStartLeavesRequestsQueued) {
     EXPECT_CALL(plans, forEach(_));
     Config config;
     BackupService service{
-        config, fs, Ports{runs, plans, snapshotters, stores, executor}
+        config, fs, Ports{backups, plans, snapshotters, stores, executor}
     };
     RequestQueue queue;
     auto response = RequestSender{queue}.send(TriggerBackupRequest{"daily"});

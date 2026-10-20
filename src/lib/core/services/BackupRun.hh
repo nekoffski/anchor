@@ -10,7 +10,7 @@ namespace anchor {
 
 struct BackupRunArgs {
     const BackupPlan& plan;
-    BackupRunRepo& runRepo;
+    BackupRepo& backupRepo;
     Snapshotter& snapshotter;
     SnapshotStore& snapshotStore;
     const FileSystem& fs;
@@ -30,7 +30,7 @@ class BackupRun : public WithUuid {
     void update(BackupRunState state);
 
     BackupPlan m_plan;
-    BackupRunRepo& m_runRepo;
+    BackupRepo& m_backupRepo;
     Snapshotter& m_snapshotter;
     SnapshotStore& m_snapshotStore;
     const FileSystem& m_fs;

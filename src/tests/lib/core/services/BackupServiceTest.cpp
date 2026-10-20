@@ -1,5 +1,5 @@
 #include "TestSupport.hh"
-#include "adapters/backup/InMemoryBackupRunRepo.hh"
+#include "adapters/backup/InMemoryBackupRepo.hh"
 #include "adapters/executors/InlineExecutor.hh"
 #include "core/services/BackupService.hh"
 
@@ -9,7 +9,7 @@ using namespace testing;
 class BackupServiceTest : public Test {
    protected:
     StrictMock<MockFileSystem> fs;
-    InMemoryBackupRunRepo runs;
+    InMemoryBackupRepo backups;
     StrictMock<MockPlanRepo> plans;
     StrictMock<MockExecutor> executor;
     Snapshotters snapshotters;
@@ -24,7 +24,7 @@ class BackupServiceTest : public Test {
             callback(backup);
         }));
         service = std::make_unique<BackupService>(
-            config, fs, Ports{runs, plans, snapshotters, stores, executor}
+            config, fs, Ports{backups, plans, snapshotters, stores, executor}
         );
     }
     MockSnapshotter* addSnapshotter() {
@@ -46,15 +46,46 @@ TEST_F(BackupServiceTest, UnknownPlanDoesNotCreateRunOrScheduleWork) {
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
     EXPECT_EQ(result.error().message(), "Backup plan not found");
-    EXPECT_FALSE(runs.has("missing"));
+    EXPECT_FALSE(backups.get("missing"));
+}
+
+TEST_F(BackupServiceTest, LoadingPlansPreservesStoredBackupState) {
+    backups.put(
+        Backup{
+            .plan = backup,
+            .enabled = false,
+            .run = BackupRunStatus{
+                .state = BackupRunState::uploading, .uuid = "existing-run"
+            }
+        }
+    );
+    backup.destination = Location::local("/new-backups");
+    EXPECT_CALL(plans, forEach(_)).WillOnce(Invoke([&](auto callback) {
+        callback(backup);
+    }));
+    service = std::make_unique<BackupService>(
+        config, fs, Ports{backups, plans, snapshotters, stores, executor}
+    );
+    const auto stored = backups.get("daily");
+    ASSERT_TRUE(stored);
+    EXPECT_EQ(stored->plan.destination.str(), "local:///new-backups");
+    EXPECT_FALSE(stored->enabled);
+    ASSERT_TRUE(stored->run);
+    EXPECT_EQ(stored->run->state, BackupRunState::uploading);
+    EXPECT_EQ(stored->run->uuid, "existing-run");
 }
 
 TEST_F(BackupServiceTest, ExistingRunDoesNotScheduleDuplicateWork) {
-    runs.put("daily", {.state = BackupRunState::uploading});
+    backups.updateRunStatus(
+        "daily", BackupRunStatus{
+                     .state = BackupRunState::uploading, .uuid = "existing-run"
+                 }
+    );
     auto result = service->triggerBackup("daily");
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().code(), ErrorCode::alreadyRunning);
-    EXPECT_EQ(runs.get("daily")->state, BackupRunState::uploading);
+    EXPECT_EQ(backups.getRunStatus("daily")->state, BackupRunState::uploading);
+    EXPECT_EQ(backups.getRunStatus("daily")->uuid, "existing-run");
 }
 
 TEST_F(BackupServiceTest, MissingSnapshotterDoesNotCreateRun) {
@@ -63,7 +94,8 @@ TEST_F(BackupServiceTest, MissingSnapshotterDoesNotCreateRun) {
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
     EXPECT_EQ(result.error().message(), "Snapshotter not found");
-    EXPECT_FALSE(runs.has("daily"));
+    EXPECT_FALSE(backups.getRunStatus("daily"));
+    EXPECT_TRUE(backups.get("daily"));
 }
 
 TEST_F(BackupServiceTest, MissingStoreDoesNotCreateRun) {
@@ -72,7 +104,8 @@ TEST_F(BackupServiceTest, MissingStoreDoesNotCreateRun) {
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
     EXPECT_EQ(result.error().message(), "Snapshot store not found");
-    EXPECT_FALSE(runs.has("daily"));
+    EXPECT_FALSE(backups.getRunStatus("daily"));
+    EXPECT_TRUE(backups.get("daily"));
 }
 
 TEST_F(BackupServiceTest, MarksRunStartingBeforeSchedulingWork) {
@@ -80,7 +113,7 @@ TEST_F(BackupServiceTest, MarksRunStartingBeforeSchedulingWork) {
     addStore();
     MoveOnlyFunction<void()> work;
     EXPECT_CALL(executor, call(_)).WillOnce(Invoke([&](auto callback) {
-        auto status = runs.get("daily");
+        auto status = backups.getRunStatus("daily");
         ASSERT_TRUE(status);
         EXPECT_EQ(status->state, BackupRunState::starting);
         work = std::move(callback);
@@ -88,6 +121,8 @@ TEST_F(BackupServiceTest, MarksRunStartingBeforeSchedulingWork) {
     auto result = service->triggerBackup("daily");
     ASSERT_TRUE(result);
     EXPECT_TRUE(uuids::uuid::is_valid_uuid(*result));
+    ASSERT_TRUE(backups.getRunStatus("daily"));
+    EXPECT_EQ(backups.getRunStatus("daily")->uuid, *result);
     ASSERT_TRUE(work);
     auto duplicate = service->triggerBackup("daily");
     ASSERT_FALSE(duplicate);
@@ -101,7 +136,7 @@ TEST_F(
     auto* store = addStore();
     MoveOnlyFunction<void()> work;
     EXPECT_CALL(executor, call(_)).WillOnce(Invoke([&](auto callback) {
-        auto status = runs.get("daily");
+        auto status = backups.getRunStatus("daily");
         ASSERT_TRUE(status);
         EXPECT_EQ(status->state, BackupRunState::starting);
         work = std::move(callback);
@@ -109,6 +144,8 @@ TEST_F(
     auto result = service->triggerBackup("daily");
     ASSERT_TRUE(result);
     EXPECT_TRUE(uuids::uuid::is_valid_uuid(*result));
+    ASSERT_TRUE(backups.getRunStatus("daily"));
+    EXPECT_EQ(backups.getRunStatus("daily")->uuid, *result);
     ASSERT_TRUE(work);
     auto duplicate = service->triggerBackup("daily");
     ASSERT_FALSE(duplicate);
@@ -127,7 +164,8 @@ TEST_F(
             Invoke([&](const SnapshotArgs& args) -> Result<SnapshotMetadata> {
                 EXPECT_THAT(args.name, StartsWith("daily_"));
                 EXPECT_EQ(
-                    runs.get("daily")->state, BackupRunState::snapshotting
+                    backups.getRunStatus("daily")->state,
+                    BackupRunState::snapshotting
                 );
                 return SnapshotMetadata{
                     "snapshot", Location::local("/snapshot")
@@ -138,41 +176,66 @@ TEST_F(
         .WillOnce(Invoke(
             [&](const SnapshotMetadata& metadata,
                 const Location&) -> Result<SnapshotMetadata> {
-                EXPECT_EQ(runs.get("daily")->state, BackupRunState::uploading);
+                EXPECT_EQ(
+                    backups.getRunStatus("daily")->state,
+                    BackupRunState::uploading
+                );
                 return metadata;
             }
         ));
     EXPECT_CALL(fs, removeAll(_)).WillOnce(Return(Result<void>{}));
     work();
-    EXPECT_EQ(runs.get("daily")->state, BackupRunState::completed);
+    EXPECT_EQ(backups.getRunStatus("daily")->state, BackupRunState::completed);
+    EXPECT_EQ(backups.getRunStatus("daily")->uuid, *result);
     service->tick();
-    EXPECT_FALSE(runs.has("daily"));
+    EXPECT_FALSE(backups.getRunStatus("daily"));
+    const auto stored = backups.get("daily");
+    ASSERT_TRUE(stored);
+    EXPECT_EQ(stored->plan.name, backup.name);
+    EXPECT_EQ(stored->plan.destination.str(), backup.destination.str());
+    EXPECT_CALL(executor, call(_));
+    auto next = service->triggerBackup("daily");
+    ASSERT_TRUE(next);
+    EXPECT_NE(*next, *result);
+    EXPECT_EQ(backups.getRunStatus("daily")->uuid, *next);
 }
 
-TEST_F(BackupServiceTest, TickRemovesOnlyCompletedRuns) {
-    runs.put("completed", {.state = BackupRunState::completed});
-    runs.put("starting", {.state = BackupRunState::starting});
-    runs.put("snapshotting", {.state = BackupRunState::snapshotting});
-    runs.put("uploading", {.state = BackupRunState::uploading});
-    runs.put("failed", {.state = BackupRunState::failed});
-    service->tick();
-    EXPECT_FALSE(runs.has("completed"));
-    for (const auto* name :
-         {"starting", "snapshotting", "uploading", "failed"}) {
-        EXPECT_TRUE(runs.has(name));
+TEST_F(BackupServiceTest, TickClearsOnlyCompletedRunsAndKeepsBackups) {
+    for (const auto& [name, state] :
+         std::vector<std::pair<Str, BackupRunState>>{
+             {"completed", BackupRunState::completed},
+             {"starting", BackupRunState::starting},
+             {"snapshotting", BackupRunState::snapshotting},
+             {"uploading", BackupRunState::uploading},
+             {"failed", BackupRunState::failed}
+         }) {
+        Backup backup{plan()};
+        backup.plan.name = name;
+        backup.run = BackupRunStatus{.state = state};
+        backups.put(backup);
     }
     service->tick();
-    EXPECT_TRUE(runs.has("failed"));
+    EXPECT_TRUE(backups.get("completed"));
+    EXPECT_FALSE(backups.getRunStatus("completed"));
+    EXPECT_TRUE(backups.get("daily"));
+    EXPECT_FALSE(backups.getRunStatus("daily"));
+    for (const auto* name :
+         {"starting", "snapshotting", "uploading", "failed"}) {
+        ASSERT_TRUE(backups.get(name));
+        EXPECT_TRUE(backups.getRunStatus(name));
+    }
+    service->tick();
+    EXPECT_TRUE(backups.getRunStatus("failed"));
 }
 
 TEST(Ports, AccessorsPreserveInjectedObjects) {
-    InMemoryBackupRunRepo runs;
+    InMemoryBackupRepo backups;
     StrictMock<MockPlanRepo> plans;
     Snapshotters snapshotters;
     SnapshotStores stores;
     InlineExecutor executor;
-    Ports ports{runs, plans, snapshotters, stores, executor};
-    EXPECT_EQ(&ports.runRepo(), &runs);
+    Ports ports{backups, plans, snapshotters, stores, executor};
+    EXPECT_EQ(&ports.backupRepo(), &backups);
     EXPECT_EQ(&ports.planRepo(), &plans);
     EXPECT_EQ(&ports.snapshotters(), &snapshotters);
     EXPECT_EQ(&ports.snapshotStores(), &stores);

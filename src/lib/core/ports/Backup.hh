@@ -18,19 +18,22 @@ class BackupPlanRepo : public NonCopyable, public NonMovable {
     virtual void forEach(Callback c) const = 0;
 };
 
-class BackupRunRepo : public NonCopyable, public NonMovable {
+class BackupRepo : public NonCopyable, public NonMovable {
    protected:
-    using Callback = MoveOnlyFunction<void(const Str&, const BackupRunStatus&)>;
+    using Callback = MoveOnlyFunction<void(const Backup&)>;
 
    public:
-    virtual ~BackupRunRepo() = default;
+    virtual ~BackupRepo() = default;
 
-    virtual bool has(const Str& backupName) const = 0;
-    virtual Opt<BackupRunStatus> get(const Str& backupName) const = 0;
-    virtual void put(const Str& backupName, const BackupRunStatus& status) = 0;
-    virtual void remove(const Str& backupName) = 0;
-    virtual void remove(std::span<const Str>) = 0;
+    virtual Opt<Backup> get(const Str& backupName) const = 0;
+    virtual void put(const Backup& backup) = 0;
     virtual void forEach(Callback c) const = 0;
+
+    virtual Opt<BackupRunStatus> getRunStatus(const Str& backupName) const = 0;
+    virtual void updateRunStatus(
+        const Str& backupName, const BackupRunStatus& status
+    ) = 0;
+    virtual void clearRunStatus(const Str& backupName) = 0;
 };
 
 }  // namespace anchor

@@ -108,14 +108,18 @@ class MockPlanRepo : public BackupPlanRepo {
     MOCK_METHOD(void, forEach, (Callback), (const, override));
 };
 
-class MockRunRepo : public BackupRunRepo {
+class MockBackupRepo : public BackupRepo {
    public:
-    MOCK_METHOD(bool, has, (const Str&), (const, override));
-    MOCK_METHOD(Opt<BackupRunStatus>, get, (const Str&), (const, override));
-    MOCK_METHOD(void, put, (const Str&, const BackupRunStatus&), (override));
-    MOCK_METHOD(void, remove, (const Str&), (override));
-    MOCK_METHOD(void, remove, (std::span<const Str>), (override));
+    MOCK_METHOD(Opt<Backup>, get, (const Str&), (const, override));
+    MOCK_METHOD(void, put, (const Backup&), (override));
     MOCK_METHOD(void, forEach, (Callback), (const, override));
+    MOCK_METHOD(
+        Opt<BackupRunStatus>, getRunStatus, (const Str&), (const, override)
+    );
+    MOCK_METHOD(
+        void, updateRunStatus, (const Str&, const BackupRunStatus&), (override)
+    );
+    MOCK_METHOD(void, clearRunStatus, (const Str&), (override));
 };
 
 class MockExecutor : public Executor {

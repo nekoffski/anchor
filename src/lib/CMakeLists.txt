@@ -26,7 +26,7 @@ add_library(anchor STATIC
     "adapters/asio/AsioSession.cpp"
     "adapters/asio/AsioController.cpp"
     "adapters/backup/DirectorySnapshotter.cpp"
-    "adapters/backup/InMemoryBackupRunRepo.cpp"
+    "adapters/backup/InMemoryBackupRepo.cpp"
     "adapters/backup/OnDiskBackupPlanRepo.cpp"
     "adapters/backup/OnDiskSnapshotStore.cpp"
     "adapters/backup/ArchiveSnapshotter.cpp"

@@ -8,7 +8,7 @@ namespace anchor {
 
 BackupRun::BackupRun(const BackupRunArgs& args)
     : m_plan(args.plan),
-      m_runRepo(args.runRepo),
+      m_backupRepo(args.backupRepo),
       m_snapshotter(args.snapshotter),
       m_snapshotStore(args.snapshotStore),
       m_fs(args.fs),
@@ -76,13 +76,14 @@ void BackupRun::fail(const Error& error) {
     BackupRunStatus status{
         .state = BackupRunState::failed,
         .error = error,
+        .uuid = uuid(),
     };
-    m_runRepo.put(m_plan.name, status);
+    m_backupRepo.updateRunStatus(m_plan.name, status);
 }
 
 void BackupRun::update(BackupRunState state) {
-    BackupRunStatus status{.state = state};
-    m_runRepo.put(m_plan.name, status);
+    BackupRunStatus status{.state = state, .uuid = uuid()};
+    m_backupRepo.updateRunStatus(m_plan.name, status);
 }
 
 }  // namespace anchor
