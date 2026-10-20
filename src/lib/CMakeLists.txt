@@ -35,6 +35,7 @@ add_library(anchor STATIC
     "core/services/BackupServiceRunner.cpp"
     "core/services/BackupRun.cpp"
     "core/services/SourceTreeBuilder.cpp"
+    "core/services/RequestQueue.cpp"
     # -- domain
     "core/domain/Backup.cpp"
     "core/domain/Location.cpp"

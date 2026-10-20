@@ -6,6 +6,7 @@ namespace anchor {
 
 enum class ErrorCode {
     noError,
+    queueError,
     invalidConfig,
     fileSystemError,
     invalidArgument,
@@ -18,7 +19,8 @@ enum class ErrorCode {
     bufferOverflow,
     serializationFailure,
     archiverFailure,
-    notImplemented
+    notImplemented,
+    alreadyRunning
 };
 
 }  // namespace anchor

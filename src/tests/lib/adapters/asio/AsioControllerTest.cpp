@@ -14,8 +14,8 @@ TEST(AsioController, DiagnosticRequestsAreAcknowledgedAndQueued) {
     ASSERT_NE(response->as<proto::AckResponse>(), nullptr);
     auto request = RequestReceiver{queue}.tryReceive();
     ASSERT_TRUE(request);
-    ASSERT_TRUE(std::holds_alternative<DiagnosticRequest>(*request));
-    EXPECT_EQ(std::get<DiagnosticRequest>(*request).details, "details");
+    ASSERT_TRUE(std::holds_alternative<DiagnosticRequest>(request->request));
+    EXPECT_EQ(std::get<DiagnosticRequest>(request->request).details, "details");
     EXPECT_FALSE(queue.tryPop());
 }
 
@@ -26,8 +26,8 @@ TEST(AsioController, BackupRequestsAreAcknowledgedAndQueued) {
     ASSERT_NE(response->as<proto::AckResponse>(), nullptr);
     auto request = queue.tryPop();
     ASSERT_TRUE(request);
-    ASSERT_TRUE(std::holds_alternative<TriggerBackupRequest>(*request));
-    EXPECT_EQ(std::get<TriggerBackupRequest>(*request).name, "daily");
+    ASSERT_TRUE(std::holds_alternative<TriggerBackupRequest>(request->request));
+    EXPECT_EQ(std::get<TriggerBackupRequest>(request->request).name, "daily");
 }
 
 TEST(AsioController, ClosedQueueReturnsConnectionFailureForBothRequests) {

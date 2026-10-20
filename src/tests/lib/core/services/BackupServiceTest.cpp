@@ -42,25 +42,36 @@ class BackupServiceTest : public Test {
 };
 
 TEST_F(BackupServiceTest, UnknownPlanDoesNotCreateRunOrScheduleWork) {
-    service->triggerBackup("missing");
+    auto result = service->triggerBackup("missing");
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+    EXPECT_EQ(result.error().message(), "Backup plan not found");
     EXPECT_FALSE(runs.has("missing"));
 }
 
 TEST_F(BackupServiceTest, ExistingRunDoesNotScheduleDuplicateWork) {
     runs.put("daily", {.state = BackupRunState::uploading});
-    service->triggerBackup("daily");
+    auto result = service->triggerBackup("daily");
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code(), ErrorCode::alreadyRunning);
     EXPECT_EQ(runs.get("daily")->state, BackupRunState::uploading);
 }
 
 TEST_F(BackupServiceTest, MissingSnapshotterDoesNotCreateRun) {
     addStore();
-    service->triggerBackup("daily");
+    auto result = service->triggerBackup("daily");
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+    EXPECT_EQ(result.error().message(), "Snapshotter not found");
     EXPECT_FALSE(runs.has("daily"));
 }
 
 TEST_F(BackupServiceTest, MissingStoreDoesNotCreateRun) {
     addSnapshotter();
-    service->triggerBackup("daily");
+    auto result = service->triggerBackup("daily");
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+    EXPECT_EQ(result.error().message(), "Snapshot store not found");
     EXPECT_FALSE(runs.has("daily"));
 }
 
@@ -74,9 +85,13 @@ TEST_F(BackupServiceTest, MarksRunStartingBeforeSchedulingWork) {
         EXPECT_EQ(status->state, BackupRunState::starting);
         work = std::move(callback);
     }));
-    service->triggerBackup("daily");
+    auto result = service->triggerBackup("daily");
+    ASSERT_TRUE(result);
+    EXPECT_TRUE(uuids::uuid::is_valid_uuid(*result));
     ASSERT_TRUE(work);
-    service->triggerBackup("daily");
+    auto duplicate = service->triggerBackup("daily");
+    ASSERT_FALSE(duplicate);
+    EXPECT_EQ(duplicate.error().code(), ErrorCode::alreadyRunning);
 }
 
 TEST_F(
@@ -91,12 +106,17 @@ TEST_F(
         EXPECT_EQ(status->state, BackupRunState::starting);
         work = std::move(callback);
     }));
-    service->triggerBackup("daily");
+    auto result = service->triggerBackup("daily");
+    ASSERT_TRUE(result);
+    EXPECT_TRUE(uuids::uuid::is_valid_uuid(*result));
     ASSERT_TRUE(work);
-    service->triggerBackup("daily");
+    auto duplicate = service->triggerBackup("daily");
+    ASSERT_FALSE(duplicate);
+    EXPECT_EQ(duplicate.error().code(), ErrorCode::alreadyRunning);
     EXPECT_CALL(fs, createDirectory(_))
-        .WillOnce(Invoke([](const Path& path) -> Result<void> {
+        .WillOnce(Invoke([&](const Path& path) -> Result<void> {
             EXPECT_EQ(path.parent().str(), "/workspace");
+            EXPECT_EQ(path.filename(), *result);
             return {};
         }));
     EXPECT_CALL(fs, glob("/source/file.txt"))

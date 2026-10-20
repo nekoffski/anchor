@@ -148,8 +148,8 @@ TEST(DiagnosticRequest, ValidatesDetailsIncludingEmptyStrings) {
 }
 
 TEST(ErrorResponse, AcceptsEveryDefinedErrorCodeWithStringMessage) {
-    for (int code = 0;
-         code <= std::to_underlying(ErrorCode::serializationFailure); ++code) {
+    for (int code = 0; code <= std::to_underlying(ErrorCode::alreadyRunning);
+         ++code) {
         auto result = proto::ErrorResponse::create(
             Json{{"code", code}, {"message", "details"}}
         );
@@ -177,6 +177,10 @@ TEST(ErrorResponse, RejectsMissingFieldsWrongTypesAndUndefinedErrorCodes) {
         Json{{"code", "bad"}, {"message", "bad"}},
         Json{{"code", 1}, {"message", false}},
         Json{{"code", -1}, {"message", "bad"}},
+        Json{
+            {"code", std::to_underlying(ErrorCode::alreadyRunning) + 1},
+            {"message", "bad"}
+        },
         Json{{"code", 999}, {"message", "bad"}},
         Json{{"code", 1.5}, {"message", "bad"}},
         Json{{"code", true}, {"message", "bad"}},

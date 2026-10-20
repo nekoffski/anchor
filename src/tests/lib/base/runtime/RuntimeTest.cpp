@@ -88,12 +88,55 @@ TEST(RequestQueue, SendsReceivesAndRejectsRequestsAfterClosing) {
     RequestSender sender{queue};
     RequestReceiver receiver{queue};
     EXPECT_FALSE(receiver.tryReceive());
-    EXPECT_TRUE(sender.send(TriggerBackupRequest{"daily"}));
+    auto response = sender.send(TriggerBackupRequest{"daily"});
+    ASSERT_TRUE(response);
+    EXPECT_TRUE(response->valid());
+    EXPECT_EQ(response->wait_for(0ms), std::future_status::timeout);
     auto request = receiver.tryReceive();
     ASSERT_TRUE(request);
-    EXPECT_EQ(std::get<TriggerBackupRequest>(*request).name, "daily");
+    ASSERT_TRUE(std::holds_alternative<TriggerBackupRequest>(request->request));
+    EXPECT_EQ(std::get<TriggerBackupRequest>(request->request).name, "daily");
+    request->promise.set_value(AckResponse{});
+    ASSERT_EQ(response->wait_for(0ms), std::future_status::ready);
+    EXPECT_TRUE(std::holds_alternative<AckResponse>(response->get()));
     queue.close();
-    EXPECT_FALSE(sender.send(DiagnosticRequest{"details"}));
+    auto rejected = sender.send(DiagnosticRequest{"details"});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code(), ErrorCode::queueError);
+    EXPECT_FALSE(receiver.tryReceive());
+}
+
+TEST(RequestQueue, DeliversResponsesToMatchingSenders) {
+    RequestQueue queue;
+    RequestSender sender{queue};
+    RequestReceiver receiver{queue};
+    auto diagnostic = sender.send(DiagnosticRequest{"details"});
+    auto backup = sender.send(TriggerBackupRequest{"daily"});
+    ASSERT_TRUE(diagnostic);
+    ASSERT_TRUE(backup);
+    auto first = receiver.tryReceive();
+    auto second = receiver.tryReceive();
+    ASSERT_TRUE(first);
+    ASSERT_TRUE(second);
+    ASSERT_TRUE(std::holds_alternative<DiagnosticRequest>(first->request));
+    EXPECT_EQ(std::get<DiagnosticRequest>(first->request).details, "details");
+    ASSERT_TRUE(std::holds_alternative<TriggerBackupRequest>(second->request));
+    EXPECT_EQ(std::get<TriggerBackupRequest>(second->request).name, "daily");
+    second->promise.set_value(
+        ErrorResponse{Error{ErrorCode::invalidArgument, "bad plan"}}
+    );
+    EXPECT_EQ(diagnostic->wait_for(0ms), std::future_status::timeout);
+    ASSERT_EQ(backup->wait_for(0ms), std::future_status::ready);
+    const auto response = backup->get();
+    ASSERT_TRUE(std::holds_alternative<ErrorResponse>(response));
+    EXPECT_EQ(
+        std::get<ErrorResponse>(response).error.code(),
+        ErrorCode::invalidArgument
+    );
+    EXPECT_EQ(std::get<ErrorResponse>(response).error.message(), "bad plan");
+    first->promise.set_value(AckResponse{});
+    ASSERT_EQ(diagnostic->wait_for(0ms), std::future_status::ready);
+    EXPECT_TRUE(std::holds_alternative<AckResponse>(diagnostic->get()));
 }
 
 class CountingThread : public Thread {

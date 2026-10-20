@@ -9,6 +9,17 @@
 namespace anchor {
 
 class BackupServiceRunner : public Thread {
+    class RequestHandler {
+       public:
+        explicit RequestHandler(BackupService& service);
+
+        Response operator()(const TriggerBackupRequest& request);
+        Response operator()(const DiagnosticRequest& request);
+
+       private:
+        BackupService& m_service;
+    };
+
    public:
     explicit BackupServiceRunner(
         BackupService& backupService, RequestReceiver receiver
@@ -19,11 +30,12 @@ class BackupServiceRunner : public Thread {
    private:
     void run() override;
 
-    void acceptRequest(Request request);
+    void acceptRequest(RequestWrapper&& request);
 
     std::atomic_bool m_running{true};
     BackupService& m_service;
     RequestReceiver m_receiver;
+    RequestHandler m_requestHandler;
 };
 
 }  // namespace anchor

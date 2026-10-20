@@ -12,7 +12,7 @@ Result<std::unique_ptr<ErrorResponse>> ErrorResponse::create(const Json& body) {
     if (not body.is_object() or not body.contains("code") or
         not body["code"].is_number_integer() or not body.contains("message") or
         not body["message"].is_string() or body["code"] < 0 or
-        body["code"] > std::to_underlying(ErrorCode::serializationFailure)) {
+        body["code"] > std::to_underlying(ErrorCode::alreadyRunning)) {
         return Error::unexpected(
             ErrorCode::invalidArgument, "Invalid error response body"
         );

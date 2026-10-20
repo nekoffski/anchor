@@ -1,5 +1,6 @@
 #pragma once
 
+#include "BackupRun.hh"
 #include "base/Concepts.hh"
 #include "base/Config.hh"
 #include "base/Core.hh"
@@ -14,10 +15,12 @@ class BackupService : public NonCopyable, public NonMovable {
         const Config& cfg, const FileSystem& fs, Ports ports
     );
 
-    void triggerBackup(const Str& name);
+    Result<Uuid> triggerBackup(const Str& name);
     void tick();
 
    private:
+    Result<BackupRunArgs> preflightBackup(const Backup& backup);
+
     void readPlans();
     void scanBackupRuns();
 
@@ -25,7 +28,6 @@ class BackupService : public NonCopyable, public NonMovable {
     const FileSystem& m_fs;
     Ports m_ports;
 
-    // std::unordered_map<Str, std::shared_ptr<BackupJobStatus>> m_activeJobs;
     std::unordered_map<Str, Backup> m_backups;
 };
 

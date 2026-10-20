@@ -12,19 +12,47 @@ BackupService::BackupService(
     readPlans();
 }
 
-void BackupService::triggerBackup(const Str& name) {
+Result<Uuid> BackupService::triggerBackup(const Str& name) {
     log::debug("Triggering backup: '{}'", name);
 
     if (not m_backups.contains(name)) {
         log::error("Backup plan not found: '{}'", name);
-        return;
+        return Error::unexpected(
+            ErrorCode::invalidArgument, "Backup plan not found"
+        );
     }
 
     const auto& backup = m_backups[name];
 
-    if (m_ports.runRepo().has(name)) {
-        log::info("Backup '{}' is already running.", name);
-        return;
+    auto args = preflightBackup(backup);
+
+    if (not args) {
+        log::error("Failed to preflight backup: '{}'", name);
+        return Error::unexpected(args.error());
+    }
+
+    BackupRunStatus status{.state = BackupRunState::starting};
+    m_ports.runRepo().put(name, status);
+
+    auto run = std::make_unique<BackupRun>(*args);
+    const auto uuid = run->uuid();
+
+    m_ports.executor().call([run = std::move(run)]() { run->start(); });
+
+    return uuid;
+}
+
+void BackupService::tick() {
+    scanBackupRuns();
+    // --
+}
+
+Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {
+    if (m_ports.runRepo().has(backup.plan.name)) {
+        log::info("Backup '{}' is already running.", backup.plan.name);
+        return Error::unexpected(
+            ErrorCode::alreadyRunning, "Backup is already running"
+        );
     }
 
     auto* snapshotter = m_ports.snapshotters().get(backup.plan.archiveType);
@@ -34,7 +62,9 @@ void BackupService::triggerBackup(const Str& name) {
             "Snapshotter not found: '{}'",
             archiveTypeToStr(backup.plan.archiveType)
         );
-        return;
+        return Error::unexpected(
+            ErrorCode::invalidArgument, "Snapshotter not found"
+        );
     }
 
     auto* store = m_ports.snapshotStores().get(backup.plan.destination.type);
@@ -44,13 +74,12 @@ void BackupService::triggerBackup(const Str& name) {
             "Snapshot store not found: '{}'",
             locationTypeToStr(backup.plan.destination.type)
         );
-        return;
+        return Error::unexpected(
+            ErrorCode::invalidArgument, "Snapshot store not found"
+        );
     }
 
-    BackupRunStatus status{.state = BackupRunState::starting};
-    m_ports.runRepo().put(name, status);
-
-    BackupRunArgs args{
+    return BackupRunArgs{
         .plan = backup.plan,
         .runRepo = m_ports.runRepo(),
         .snapshotter = *snapshotter,
@@ -58,15 +87,6 @@ void BackupService::triggerBackup(const Str& name) {
         .fs = m_fs,
         .workspace = m_cfg.paths.workspace,
     };
-
-    m_ports.executor().call([args = std::move(args)]() {
-        BackupRun{args}.start();
-    });
-}
-
-void BackupService::tick() {
-    scanBackupRuns();
-    // --
 }
 
 void BackupService::readPlans() {

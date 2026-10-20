@@ -13,7 +13,7 @@ void BackupServiceRunner::run() {
     while (m_running) {
         for (u64 i = 0; i < maxRequestsPerCycle; ++i) {
             if (auto req = m_receiver.tryReceive(); req) {
-                acceptRequest(*req);
+                acceptRequest(std::move(*req));
             } else {
                 break;
             }
@@ -23,19 +23,9 @@ void BackupServiceRunner::run() {
     }
 }
 
-void BackupServiceRunner::acceptRequest(Request request) {
-    std::visit(
-        Overloader{
-            [this](const DiagnosticRequest& req) {
-                log::debug("Received diagnostic request: {}", req.details);
-            },
-            [this](const TriggerBackupRequest& req) {
-                log::debug("Received backup request: {}", req.name);
-                m_service.triggerBackup(req.name);
-            }
-        },
-        request
-    );
+void BackupServiceRunner::acceptRequest(RequestWrapper&& wrapper) {
+    const auto res = std::visit(m_requestHandler, wrapper.request);
+    wrapper.promise.set_value(res);
 }
 
 BackupServiceRunner::BackupServiceRunner(
@@ -43,6 +33,31 @@ BackupServiceRunner::BackupServiceRunner(
 )
     : Thread("BackupServiceRunner"),
       m_service(backupService),
-      m_receiver(receiver) {}
+      m_receiver(receiver),
+      m_requestHandler(backupService) {}
+
+BackupServiceRunner::RequestHandler::RequestHandler(BackupService& service)
+    : m_service(service) {}
+
+Response BackupServiceRunner::RequestHandler::operator()(
+    const TriggerBackupRequest& request
+) {
+    log::debug("Received backup request: {}", request.name);
+
+    auto result = m_service.triggerBackup(request.name);
+
+    if (not result) {
+        return ErrorResponse{.error = result.error()};
+    }
+
+    return AckResponse{};
+}
+
+Response BackupServiceRunner::RequestHandler::operator()(
+    const DiagnosticRequest& request
+) {
+    log::debug("Received diagnostic request: {}", request.details);
+    return AckResponse{};
+}
 
 }  // namespace anchor
