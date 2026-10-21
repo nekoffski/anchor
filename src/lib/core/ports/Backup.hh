@@ -26,6 +26,8 @@ class BackupRepo : public NonCopyable, public NonMovable {
     virtual ~BackupRepo() = default;
 
     virtual Opt<Backup> get(const Str& backupName) const = 0;
+    virtual std::vector<Backup> getAll() const = 0;
+
     virtual void put(const Backup& backup) = 0;
     virtual void forEach(Callback c) const = 0;
 

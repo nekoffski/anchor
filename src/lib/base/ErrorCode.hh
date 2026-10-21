@@ -20,6 +20,7 @@ enum class ErrorCode {
     serializationFailure,
     archiverFailure,
     notImplemented,
+    unknownRequest,
     alreadyRunning
 };
 

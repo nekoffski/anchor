@@ -60,4 +60,10 @@ Response BackupServiceRunner::RequestHandler::operator()(
     return AckResponse{};
 }
 
+Response BackupServiceRunner::RequestHandler::operator()(
+    const GetBackupsRequest&
+) {
+    return GetBackupsResponse{.backups = m_service.getBackups()};
+}
+
 }  // namespace anchor

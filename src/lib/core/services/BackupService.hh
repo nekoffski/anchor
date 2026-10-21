@@ -17,6 +17,7 @@ class BackupService : public NonCopyable, public NonMovable {
 
     Result<Uuid> triggerBackup(const Str& name);
     void tick();
+    std::vector<Backup> getBackups();
 
    private:
     Result<BackupRunArgs> preflightBackup(const Backup& backup);

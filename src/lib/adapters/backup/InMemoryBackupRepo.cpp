@@ -10,6 +10,12 @@ Opt<Backup> InMemoryBackupRepo::get(const Str& backupName) const {
     return {};
 }
 
+std::vector<Backup> InMemoryBackupRepo::getAll() const {
+    std::shared_lock lk{m_mutex};
+    return m_backups | std::views::values |
+           std::ranges::to<std::vector<Backup>>();
+}
+
 void InMemoryBackupRepo::put(const Backup& backup) {
     std::unique_lock lk{m_mutex};
     m_backups[backup.plan.name] = backup;

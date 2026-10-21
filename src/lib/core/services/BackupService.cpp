@@ -32,9 +32,11 @@ Result<Uuid> BackupService::triggerBackup(const Str& name) {
 
     auto run = std::make_unique<BackupRun>(*args);
     const auto uuid = run->uuid();
-    m_ports.backupRepo().updateRunStatus(
-        name, BackupRunStatus{.state = BackupRunState::starting, .uuid = uuid}
-    );
+
+    BackupRunStatus initialStatus{
+        .state = BackupRunState::starting, .uuid = uuid
+    };
+    m_ports.backupRepo().updateRunStatus(name, initialStatus);
 
     m_ports.executor().call([run = std::move(run)]() { run->start(); });
 
@@ -44,6 +46,10 @@ Result<Uuid> BackupService::triggerBackup(const Str& name) {
 void BackupService::tick() {
     scanBackupRuns();
     // --
+}
+
+std::vector<Backup> BackupService::getBackups() {
+    return m_ports.backupRepo().getAll();
 }
 
 Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {

@@ -25,9 +25,10 @@ class Message : public NonCopyable, public NonMovable {
         return nullptr;
     }
 
+    virtual Str name() const = 0;
+
    private:
     virtual Json serializeBody() const = 0;
-    virtual Str name() const = 0;
     virtual std::type_index type() const = 0;
 };
 

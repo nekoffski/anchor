@@ -15,6 +15,7 @@ class BackupServiceRunner : public Thread {
 
         Response operator()(const TriggerBackupRequest& request);
         Response operator()(const DiagnosticRequest& request);
+        Response operator()(const GetBackupsRequest& request);
 
        private:
         BackupService& m_service;

@@ -2,6 +2,8 @@
 
 #include "proto/AckResponse.hh"
 #include "proto/ErrorResponse.hh"
+#include "proto/GetBackupsRequest.hh"
+#include "proto/GetBackupsResponse.hh"
 #include "proto/TriggerBackupRequest.hh"
 
 namespace anchor::cli {
@@ -108,7 +110,26 @@ Result<void> BackupCommands::trigger() {
 }
 
 Result<void> BackupCommands::list() {
-    fmt::print("Mock: backup list is not implemented yet.\n");
+    proto::GetBackupsRequest request;
+
+    if (auto res = m_client.send(request); not res) {
+        return Error::unexpected(
+            ErrorCode::connectionFailure,
+            "Failed to send get backups request: {}", res.error()
+        );
+    }
+    auto response = m_client.receive();
+    auto backups = response->get()->as<proto::GetBackupsResponse>();
+
+    for (const auto& backup : backups->backups()) {
+        fmt::print("Backup: {}\n", backup.plan.name);
+        fmt::print("  Enabled: {}\n", backup.enabled);
+
+        if (backup.run) {
+            // fmt::print("  Run: {}\n", backup.run->state);
+        }
+    }
+
     return {};
 }
 

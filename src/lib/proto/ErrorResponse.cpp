@@ -23,6 +23,10 @@ Result<std::unique_ptr<ErrorResponse>> ErrorResponse::create(const Json& body) {
     );
 }
 
+std::unique_ptr<ErrorResponse> ErrorResponse::create(const Error& error) {
+    return std::make_unique<ErrorResponse>(error);
+}
+
 Json ErrorResponse::serializeBody() const {
     return Json{
         {"message", m_error.message()},

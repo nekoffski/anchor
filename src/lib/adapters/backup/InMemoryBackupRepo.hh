@@ -11,6 +11,8 @@ namespace anchor {
 class InMemoryBackupRepo : public BackupRepo {
    public:
     Opt<Backup> get(const Str& backupName) const override;
+    std::vector<Backup> getAll() const override;
+
     void put(const Backup& backup) override;
     void forEach(Callback c) const override;
 

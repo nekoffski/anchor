@@ -111,6 +111,7 @@ class MockPlanRepo : public BackupPlanRepo {
 class MockBackupRepo : public BackupRepo {
    public:
     MOCK_METHOD(Opt<Backup>, get, (const Str&), (const, override));
+    MOCK_METHOD(std::vector<Backup>, getAll, (), (const, override));
     MOCK_METHOD(void, put, (const Backup&), (override));
     MOCK_METHOD(void, forEach, (Callback), (const, override));
     MOCK_METHOD(

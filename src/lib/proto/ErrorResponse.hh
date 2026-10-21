@@ -10,6 +10,8 @@ class ErrorResponse : public MessageImpl<ErrorResponse> {
     explicit ErrorResponse(const Error& error);
 
     static Result<std::unique_ptr<ErrorResponse>> create(const Json& body);
+    static std::unique_ptr<ErrorResponse> create(const Error& error);
+
     const Error& error() const { return m_error; }
 
    private:

@@ -3,6 +3,8 @@
 #include "AckResponse.hh"
 #include "DiagnosticRequest.hh"
 #include "ErrorResponse.hh"
+#include "GetBackupsRequest.hh"
+#include "GetBackupsResponse.hh"
 #include "TriggerBackupRequest.hh"
 
 namespace anchor::proto {
@@ -33,6 +35,10 @@ Result<std::unique_ptr<Message>> Message::create(const Json& json) {
         return TriggerBackupRequest::create(body);
     } else if (name == "ErrorResponse") {
         return ErrorResponse::create(body);
+    } else if (name == "GetBackupsRequest") {
+        return GetBackupsRequest::create(body);
+    } else if (name == "GetBackupsResponse") {
+        return GetBackupsResponse::create(body);
     }
     return Error::unexpected(ErrorCode::invalidRequest, "Unknown message name");
 }

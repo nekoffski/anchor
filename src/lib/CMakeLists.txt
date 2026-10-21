@@ -21,6 +21,8 @@ add_library(anchor STATIC
     "proto/DiagnosticRequest.cpp"
     "proto/ErrorResponse.cpp"
     "proto/TriggerBackupRequest.cpp"
+    "proto/GetBackupsRequest.cpp"
+    "proto/GetBackupsResponse.cpp"
     # -- adapters
     "adapters/asio/AsioServer.cpp"
     "adapters/asio/AsioSession.cpp"
