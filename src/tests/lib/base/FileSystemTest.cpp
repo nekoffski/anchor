@@ -1,3 +1,5 @@
+#include <array>
+
 #include "TestSupport.hh"
 #include "base/Env.hh"
 
@@ -43,6 +45,19 @@ TEST(Path, ResolvesEnvironmentVariablesByPathComponent) {
         Path{"/prefix/literal$ANCHOR_TEST_PATH"}.resolveEnv().str(),
         "/prefix/literal$ANCHOR_TEST_PATH"
     );
+}
+
+TEST(Path, NormalizesAndResolvesPathsWithoutRequiringThemToExist) {
+    EXPECT_EQ(Path{"/base/./child/../file"}.normalized().str(), "/base/file");
+    EXPECT_EQ(Path{"one/../two"}.normalized().str(), "two");
+    const auto relative =
+        Path{"/base/child/../file"}.lexicallyRelative("/base").normalized();
+    EXPECT_EQ(relative.str(), "file");
+    EXPECT_TRUE(Path{"/base"}.isAbsolute());
+    EXPECT_FALSE(Path{"relative"}.isAbsolute());
+    auto resolved = Path{"one/../two"}.absolute();
+    ASSERT_TRUE(resolved);
+    EXPECT_EQ(resolved->str(), Path::join(Path::cwd(), "two").str());
 }
 
 using FileSystemTest = TemporaryDirectory;
@@ -213,6 +228,92 @@ TEST_F(FileSystemTest, ListingMissingDirectoriesReturnsErrors) {
     ASSERT_FALSE(directories);
     EXPECT_EQ(files.error().code(), ErrorCode::fileSystemError);
     EXPECT_EQ(directories.error().code(), ErrorCode::fileSystemError);
+}
+
+TEST_F(
+    FileSystemTest, OpenFilesSupportChunkedBinaryIOAndCheckedIdempotentClose
+) {
+    const auto target = path("stream");
+    auto writer = fs.openFile(target, FileMode::createNew);
+    ASSERT_TRUE(writer);
+    const std::array<Byte, 4> contents{0, 1, 127, 255};
+    EXPECT_TRUE((*writer)->write(std::span{contents}.first(2)));
+    EXPECT_TRUE((*writer)->write(std::span{contents}.subspan(2)));
+    EXPECT_TRUE((*writer)->write({}));
+    EXPECT_TRUE((*writer)->close());
+    EXPECT_TRUE((*writer)->close());
+    EXPECT_FALSE((*writer)->write(contents));
+    auto reader = fs.openFile(target, FileMode::read);
+    ASSERT_TRUE(reader);
+    std::array<Byte, 3> buffer{};
+    auto first = (*reader)->read(buffer);
+    ASSERT_TRUE(first);
+    EXPECT_EQ(*first, 3);
+    EXPECT_THAT(buffer, ElementsAre(0, 1, 127));
+    auto second = (*reader)->read(buffer);
+    ASSERT_TRUE(second);
+    EXPECT_EQ(*second, 1);
+    EXPECT_EQ(buffer[0], 255);
+    auto end = (*reader)->read(buffer);
+    ASSERT_TRUE(end);
+    EXPECT_EQ(*end, 0);
+    EXPECT_FALSE((*reader)->write(contents));
+    EXPECT_TRUE((*reader)->close());
+    EXPECT_FALSE((*reader)->read(buffer));
+    EXPECT_THAT(*fs.readBinary(target), ElementsAre(0, 1, 127, 255));
+}
+
+TEST_F(
+    FileSystemTest, OpenFilesReleaseOnDestructionAndNeverOverwriteExistingFiles
+) {
+    const auto target = path("existing");
+    {
+        auto writer = fs.openFile(target, FileMode::createNew);
+        ASSERT_TRUE(writer);
+        const std::array<Byte, 2> data{1, 2};
+        ASSERT_TRUE((*writer)->write(data));
+    }
+    EXPECT_FALSE(fs.openFile(target, FileMode::createNew));
+    EXPECT_THAT(*fs.readBinary(target), ElementsAre(1, 2));
+    EXPECT_FALSE(fs.openFile(path("missing"), FileMode::read));
+    EXPECT_FALSE(fs.openFile(path("missing/parent"), FileMode::createNew));
+    std::filesystem::create_symlink(target.str(), path("link").str());
+    EXPECT_FALSE(fs.openFile(path("link"), FileMode::createNew));
+    EXPECT_FALSE(fs.openFile(path("link"), FileMode::read));
+}
+
+TEST_F(
+    FileSystemTest, MetadataAndListingsPreserveLinksWithoutFollowingTargets
+) {
+    ASSERT_TRUE(fs.writeFile(path("file"), "data"));
+    ASSERT_TRUE(fs.createDirectory(path("directory")));
+    std::filesystem::create_symlink("file", path("link").str());
+    std::filesystem::create_symlink("missing", path("broken").str());
+    auto file = fs.info(path("file"));
+    ASSERT_TRUE(file);
+    EXPECT_EQ(file->type, FileInfo::Type::regular);
+    EXPECT_EQ(file->size, 4);
+    auto directory = fs.info(path("directory"));
+    ASSERT_TRUE(directory);
+    EXPECT_EQ(directory->type, FileInfo::Type::directory);
+    auto link = fs.info(path("broken"));
+    ASSERT_TRUE(link);
+    EXPECT_EQ(link->type, FileInfo::Type::symlink);
+    EXPECT_EQ(link->linkTarget, "missing");
+    EXPECT_FALSE(fs.info(path("missing")));
+    auto entries = fs.listEntries(root);
+    ASSERT_TRUE(entries);
+    std::vector<Str> names;
+    for (const auto& entry : *entries) {
+        names.push_back(entry.filenameWithExtension());
+    }
+    EXPECT_THAT(
+        names, UnorderedElementsAre("file", "directory", "link", "broken")
+    );
+    EXPECT_FALSE(fs.listEntries(path("missing")));
+    EXPECT_TRUE(*fs.equivalent(path("file"), path("link")));
+    EXPECT_FALSE(*fs.equivalent(path("file"), path("directory")));
+    EXPECT_FALSE(fs.equivalent(path("file"), path("missing")));
 }
 
 }  // namespace anchor::test

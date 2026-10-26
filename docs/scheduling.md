@@ -56,6 +56,45 @@ The orchestrator records a run's UUID and `queued` status before dispatch. A run
 
 The daemon uses `InlineExecutor`, so queued backups execute sequentially on the orchestrator thread. Request handling and scheduling remain on their own threads. Each run uses a workspace named after its UUID and attempts cleanup after snapshotting or storage, including failure paths. Failure to create the workspace returns without attempting removal.
 
+## Snapshot formats
+
+The daemon registers `DirectorySnapshotter` for `archive: directory` and
+`ArchiveSnapshotter` for both `archive: zip` and `archive: tgz`. ZIP uses deflate
+compression; TGZ uses gzip over restricted PAX tar. Each archive snapshot is a
+single file named after the snapshot, with a `.zip` or `.tgz` extension. The
+local snapshot store copies that file to the configured destination.
+
+`ArchiveSnapshotter` uses the injected `FileSystem` to obtain entry metadata and
+list selected directories, and `Path` for lexical path operations. Source-tree
+nodes with explicit children include only those children; directory leaves
+include their entire subtree. File data streams through a 64 KiB buffer.
+Archive paths are relative to each source root,
+and shared directory paths across sources are merged. Conflicting file paths
+fail the snapshot. Empty files and directories, permissions, modification times,
+and symbolic links are retained. Links are archived without following targets;
+selecting children through a symbolic-link parent is rejected.
+
+Archive handles and files use RAII. `FileSystem::openFile` returns a `File` with
+checked chunked reads, writes, and close; `createNew` mode opens a new file
+exclusively.
+The native file implementation owns its descriptor, handles partial writes and
+interrupted operations, and closes it on destruction. Libarchive sends output
+through a callback to `File::write`, and source data is read through `File::read`.
+`FileSystem::equivalent` detects the output file even through source-root aliases.
+Metadata lookup does not follow symbolic links, and unfiltered directory listings
+include broken links so they can be preserved.
+
+Checked libarchive calls return errors with operation context. Setup and
+finalization use `pipeline` to run `Result<void>` steps in order and stop at the
+first failure. Operations passing values between stages use `Result::and_then`;
+traversal and data loops propagate failures through `Result` as well.
+Success is returned only after the archive and output
+file have both closed successfully. Output files are created exclusively, so an
+existing snapshot is never truncated.
+Paths outside a source root, special files such as pipes, and inclusion of the
+output archive in its own selection fail the snapshot. The run's workspace
+cleanup also removes incomplete archive files after failure.
+
 ## Lifecycle
 
 `BackupService::start` starts the orchestrator and request consumer before the scheduler. The API server starts after the service is ready. Callers must keep the service alive while its sender handles are in use.

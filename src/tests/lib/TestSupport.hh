@@ -60,10 +60,28 @@ class ScopedEnv {
     Opt<Str> old;
 };
 
+class MockFile : public File {
+   public:
+    MOCK_METHOD(Result<size_t>, read, (std::span<Byte>), (override));
+    MOCK_METHOD(Result<void>, write, (std::span<const Byte>), (override));
+    MOCK_METHOD(Result<void>, close, (), (override));
+};
+
 class MockFileSystem : public FileSystem {
    public:
     MOCK_METHOD(bool, exists, (const Path&), (const, override));
     MOCK_METHOD(bool, isFile, (const Path&), (const, override));
+    MOCK_METHOD(Result<FileInfo>, info, (const Path&), (const, override));
+    MOCK_METHOD(
+        Result<bool>, equivalent, (const Path&, const Path&), (const, override)
+    );
+    MOCK_METHOD(
+        Result<std::unique_ptr<File>>, openFile, (const Path&, FileMode),
+        (const, override)
+    );
+    MOCK_METHOD(
+        Result<std::vector<Path>>, listEntries, (const Path&), (const, override)
+    );
     MOCK_METHOD(std::vector<Path>, glob, (const Str&), (const, override));
     MOCK_METHOD(Result<Str>, readFile, (const Path&), (const, override));
     MOCK_METHOD(bool, isDirectory, (const Path&), (const, override));

@@ -38,7 +38,14 @@ int main(int argc, const char** argv) {
 
     Snapshotters snapshotters;
     snapshotters.add<DirectorySnapshotter>(ArchiveType::directory, fs);
-    snapshotters.add<ZipSnapshotter>(ArchiveType::zip, fs);
+    // TODO: we pass the same arg twice, extend interface map so it takes key
+    // from value
+    snapshotters.add<ArchiveSnapshotter>(
+        ArchiveType::zip, fs, ArchiveType::zip
+    );
+    snapshotters.add<ArchiveSnapshotter>(
+        ArchiveType::tgz, fs, ArchiveType::tgz
+    );
 
     SnapshotStores snapshotStores;
     snapshotStores.add<OnDiskSnapshotStore>(LocationType::local, fs);

@@ -1,5 +1,11 @@
 #include "FileSystem.hh"
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include <cerrno>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <glob/glob.hpp>
@@ -13,6 +19,141 @@
 namespace fs = std::filesystem;
 
 namespace anchor {
+namespace {
+
+Error fileError(const Str& operation, const Path& path) {
+    return Error{
+        ErrorCode::fileSystemError, "{} '{}': {}", operation, path.str(),
+        std::strerror(errno)
+    };
+}
+
+class NativeFile : public File {
+   public:
+    NativeFile(int descriptor, const Path& path)
+        : m_descriptor(descriptor), m_path(path) {}
+    ~NativeFile() override {
+        if (m_descriptor >= 0) {
+            ::close(m_descriptor);
+        }
+    }
+
+    Result<size_t> read(std::span<Byte> buffer) override {
+        ssize_t count;
+        do {
+            count = ::read(m_descriptor, buffer.data(), buffer.size());
+        } while (count < 0 && errno == EINTR);
+        if (count < 0) {
+            return Error::unexpected(fileError("Could not read", m_path));
+        }
+        return static_cast<size_t>(count);
+    }
+
+    Result<void> write(std::span<const Byte> data) override {
+        while (not data.empty()) {
+            const auto count = ::write(m_descriptor, data.data(), data.size());
+            if (count < 0 && errno == EINTR) {
+                continue;
+            }
+            if (count < 0) {
+                return Error::unexpected(fileError("Could not write", m_path));
+            }
+            if (count == 0) {
+                return Error::unexpected(
+                    ErrorCode::fileSystemError, "No write progress for '{}'",
+                    m_path.str()
+                );
+            }
+            data = data.subspan(static_cast<size_t>(count));
+        }
+        return {};
+    }
+
+    Result<void> close() override {
+        if (m_descriptor >= 0 &&
+            ::close(std::exchange(m_descriptor, -1)) != 0) {
+            return Error::unexpected(fileError("Could not close", m_path));
+        }
+        return {};
+    }
+
+   private:
+    int m_descriptor;
+    Path m_path;
+};
+
+}  // namespace
+
+Result<std::unique_ptr<File>> FileSystem::openFile(
+    const Path& path, FileMode mode
+) const {
+    const auto flags = mode == FileMode::read ? O_RDONLY | O_NOFOLLOW
+                                              : O_WRONLY | O_CREAT | O_EXCL;
+    const auto descriptor = ::open(path.str().c_str(), flags | O_CLOEXEC, 0600);
+    if (descriptor < 0) {
+        return Error::unexpected(fileError("Could not open", path));
+    }
+    return std::make_unique<NativeFile>(descriptor, path);
+}
+
+Result<FileInfo> FileSystem::info(const Path& path) const {
+    struct stat status{};
+    if (::lstat(path.str().c_str(), &status) != 0) {
+        return Error::unexpected(fileError("Could not stat", path));
+    }
+    auto type = FileInfo::Type::other;
+    if (S_ISREG(status.st_mode)) {
+        type = FileInfo::Type::regular;
+    } else if (S_ISDIR(status.st_mode)) {
+        type = FileInfo::Type::directory;
+    } else if (S_ISLNK(status.st_mode)) {
+        type = FileInfo::Type::symlink;
+    }
+#ifdef __APPLE__
+    const auto modified = status.st_mtimespec;
+#else
+    const auto modified = status.st_mtim;
+#endif
+    FileInfo result{
+        .type = type,
+        .size = type == FileInfo::Type::regular
+                    ? static_cast<u64>(status.st_size)
+                    : 0,
+        .permissions = static_cast<u32>(status.st_mode & 07777),
+        .owner = status.st_uid,
+        .group = status.st_gid,
+        .modified = std::chrono::sys_time<std::chrono::nanoseconds>{
+            std::chrono::seconds{modified.tv_sec} +
+            std::chrono::nanoseconds{modified.tv_nsec}
+        }
+    };
+    if (type == FileInfo::Type::symlink) {
+        std::error_code ec;
+        const auto target = fs::read_symlink(path.str(), ec);
+        if (ec) {
+            return Error::unexpected(
+                ErrorCode::fileSystemError, "Could not read link '{}': {}",
+                path.str(), ec.message()
+            );
+        }
+        result.linkTarget = target.string();
+    }
+    return result;
+}
+
+Result<bool> FileSystem::equivalent(
+    const Path& first, const Path& second
+) const {
+    std::error_code ec;
+    const auto same = fs::equivalent(first.str(), second.str(), ec);
+    if (ec) {
+        return Error::unexpected(
+            ErrorCode::fileSystemError, "Could not compare '{}' and '{}': {}",
+            first.str(), second.str(), ec.message()
+        );
+    }
+    return same;
+}
 
 bool FileSystem::isFile(const Path& path) const {
     std::error_code ec;
@@ -96,17 +237,19 @@ std::vector<Path> FileSystem::glob(const Str& pattern) const {
 
 namespace {
 
-Result<std::vector<Path>> listEntries(const Path& path, fs::file_type type) {
+Result<std::vector<Path>> listEntriesOfType(
+    const Path& path, Opt<fs::file_type> type = {}
+) {
     std::vector<Path> entries;
     std::error_code ec;
     fs::directory_iterator iterator{path.str(), ec};
     const fs::directory_iterator end;
-    while (not ec and iterator != end) {
-        const auto status = iterator->status(ec);
+    while (not ec && iterator != end) {
+        const auto matches = not type || iterator->status(ec).type() == *type;
         if (ec) {
             break;
         }
-        if (status.type() == type) {
+        if (matches) {
             entries.emplace_back(iterator->path().string());
         }
         iterator.increment(ec);
@@ -123,11 +266,15 @@ Result<std::vector<Path>> listEntries(const Path& path, fs::file_type type) {
 }  // namespace
 
 Result<std::vector<Path>> FileSystem::listFiles(const Path& path) const {
-    return listEntries(path, fs::file_type::regular);
+    return listEntriesOfType(path, fs::file_type::regular);
 }
 
 Result<std::vector<Path>> FileSystem::listDirectories(const Path& path) const {
-    return listEntries(path, fs::file_type::directory);
+    return listEntriesOfType(path, fs::file_type::directory);
+}
+
+Result<std::vector<Path>> FileSystem::listEntries(const Path& path) const {
+    return listEntriesOfType(path);
 }
 
 Result<void> FileSystem::remove(const Path& path) const {
@@ -302,9 +449,29 @@ Path Path::join(const Path& base, const Path& relative) {
 
 Path Path::cwd() { return Path{fs::current_path().string()}; }
 
-Str Path::lexicallyRelative(const Path& base) const {
-    return fs::path(m_path).lexically_relative(fs::path(base.str())).string();
+Path Path::lexicallyRelative(const Path& base) const {
+    return Path{
+        fs::path(m_path).lexically_relative(fs::path(base.str())).string()
+    };
 }
+
+Path Path::normalized() const {
+    return Path{fs::path(m_path).lexically_normal().string()};
+}
+
+Result<Path> Path::absolute() const {
+    std::error_code ec;
+    const auto path = fs::absolute(m_path, ec);
+    if (ec) {
+        return Error::unexpected(
+            ErrorCode::fileSystemError, "Could not resolve '{}': {}", m_path,
+            ec.message()
+        );
+    }
+    return Path{path.lexically_normal().string()};
+}
+
+bool Path::isAbsolute() const { return fs::path(m_path).is_absolute(); }
 
 Path Path::resolveEnv() const {
     auto path = m_path;

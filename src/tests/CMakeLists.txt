@@ -6,6 +6,7 @@ add_executable(anchor-tests
     "lib/adapters/backup/InMemoryBackupRepoTest.cpp"
     "lib/adapters/backup/OnDiskBackupPlanRepoTest.cpp"
     "lib/adapters/backup/SnapshotTest.cpp"
+    "lib/adapters/backup/ArchiveSnapshotterTest.cpp"
     "lib/base/ConfigTest.cpp"
     "lib/base/ContainersTest.cpp"
     "lib/base/CoreTest.cpp"

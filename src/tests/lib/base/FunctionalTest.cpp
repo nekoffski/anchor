@@ -6,6 +6,81 @@
 namespace anchor::test {
 using namespace testing;
 
+TEST(Pipeline, RunsStepsInOrder) {
+    std::vector<int> calls;
+    auto result = pipeline(
+        [&]() -> Result<void> {
+            calls.push_back(1);
+            return {};
+        },
+        [&]() -> Result<void> {
+            calls.push_back(2);
+            return {};
+        },
+        [&]() -> Result<void> {
+            calls.push_back(3);
+            return {};
+        }
+    );
+    EXPECT_TRUE(result);
+    EXPECT_THAT(calls, ElementsAre(1, 2, 3));
+}
+
+TEST(Pipeline, PreservesFirstErrorAndSkipsRemainingSteps) {
+    for (const auto failFirst : {true, false}) {
+        std::vector<int> calls;
+        auto result = pipeline(
+            [&]() -> Result<void> {
+                calls.push_back(1);
+                if (failFirst) {
+                    return Error::unexpected(
+                        ErrorCode::invalidArgument, "first failed"
+                    );
+                }
+                return {};
+            },
+            [&]() -> Result<void> {
+                calls.push_back(2);
+                return Error::unexpected(
+                    ErrorCode::fileSystemError, "second failed"
+                );
+            },
+            [&]() -> Result<void> {
+                calls.push_back(3);
+                return {};
+            }
+        );
+        ASSERT_FALSE(result);
+        EXPECT_EQ(
+            result.error().code(),
+            failFirst ? ErrorCode::invalidArgument : ErrorCode::fileSystemError
+        );
+        EXPECT_EQ(
+            result.error().message(),
+            failFirst ? "first failed" : "second failed"
+        );
+        EXPECT_EQ(
+            calls, failFirst ? std::vector<int>{1} : std::vector<int>({1, 2})
+        );
+    }
+}
+
+TEST(Pipeline, AcceptsMoveOnlyRvaluesAndLvalueCallables) {
+    int total = 0;
+    auto step = [value = std::make_unique<int>(3), &total]() -> Result<void> {
+        total += *value;
+        return {};
+    };
+    auto result = pipeline(
+        step, [value = std::make_unique<int>(4), &total]() -> Result<void> {
+            total += *value;
+            return {};
+        }
+    );
+    EXPECT_TRUE(result);
+    EXPECT_EQ(total, 7);
+}
+
 TEST(MoveOnlyFunction, EmptyAndResetFunctionsHaveNoCallable) {
     MoveOnlyFunction<int()> empty;
     EXPECT_FALSE(empty);

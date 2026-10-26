@@ -4,8 +4,8 @@ Anchor is a C++23 backup engine with a command-line client and a background
 daemon. It uses YAML manifests to select files and directories, build snapshots,
 and copy them to a backup destination.
 
-The project is under active development. Directory snapshots and local storage
-are currently implemented.
+The project supports directory, ZIP, and gzip-compressed tar (TGZ) snapshots
+with local storage.
 
 ## Build
 
@@ -68,7 +68,7 @@ filename without its extension becomes the backup name (`personal`).
 
 ```yaml
 settings:
-  archive: directory
+  archive: directory  # directory, zip, or tgz
   destination: local://$HOME/backups/anchor
   cron: '0 0 2 * * *'  # optional: daily at 02:00 in the daemon's local timezone
 
@@ -86,8 +86,15 @@ to each source's `root`; selected directories are copied recursively. Relative
 paths are preserved in the snapshot, such as `Documents/notes.txt`.
 
 `$HOME` is expanded in source roots and local destination paths. The destination
-receives a separate directory for each snapshot. Create the destination
-directory before running a backup.
+receives a separate directory or archive file for each snapshot. Create the
+destination directory before running a backup.
+
+Use `archive: zip` or `archive: tgz` to store a compressed archive instead of a
+directory. Archive members retain their paths relative to each source root.
+Selected directories include their contents recursively; permissions,
+modification times, and symbolic links are preserved. Archives use `.zip` and
+`.tgz` filenames respectively. Symbolic links are stored as links without
+following their targets.
 
 Omit `cron` for a manual-only plan. Scheduled occurrences are skipped while the
 backup is queued or running, and missed times are not replayed after downtime

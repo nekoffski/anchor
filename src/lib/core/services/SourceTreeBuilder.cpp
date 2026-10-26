@@ -54,12 +54,12 @@ SourceTree SourceTreeBuilder::build(
         auto root = tree.root;
         auto* level = &tree.nodes;
 
-        for (const auto& component : split(suffix, "/")) {
+        for (const auto& component : split(suffix.str(), "/")) {
             root = Path::join(root, component);
             auto& node = (*level)[component];
 
             node.name = component;
-            node.relativePath = root.lexicallyRelative(source.root);
+            node.relativePath = root.lexicallyRelative(source.root).str();
             node.type = fs.isDirectory(root) ? SourceTree::NodeType::directory
                                              : SourceTree::NodeType::file;
             level = &node.children;

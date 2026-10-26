@@ -20,10 +20,12 @@ class BackupService : public Thread {
 
    private:
     void run() override;
+
     Response handle(const TriggerBackupRequest& request);
     Response handle(const GetBackupsRequest& request);
     Response handle(const DiagnosticRequest& request);
     Response handle(const ReloadPlansRequest& request);
+
     Result<BackupRunArgs> preflightBackup(const Backup& backup);
     Result<void> readPlans();
 

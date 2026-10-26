@@ -14,6 +14,7 @@ add_library(anchor STATIC
     "base/Json.cpp"
     "base/Yaml.cpp"
     "base/runtime/Thread.cpp"
+    "base/runtime/ThreadPool.cpp"
     "base/runtime/SignalHandler.cpp"
     # -- proto
     "proto/Message.cpp"

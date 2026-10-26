@@ -3,218 +3,408 @@
 #include <archive.h>
 #include <archive_entry.h>
 
-#include <memory>
+#include <array>
+#include <unordered_map>
 
-#include "base/Error.hh"
 #include "base/Functional.hh"
 
 namespace anchor {
+namespace {
 
-enum class ArchiveFormat { tgz, zip };
+constexpr size_t archiveBufferSize = 64 * 1024;
+using ArchiveHandle = std::unique_ptr<archive, decltype(&archive_write_free)>;
+using EntryHandle =
+    std::unique_ptr<archive_entry, decltype(&archive_entry_free)>;
 
-class ArchiveWriter : public NonCopyable {
-    struct Guard {};
+Error archiveError(archive* handle, const Str& operation) {
+    const auto* reason = archive_error_string(handle);
+    return Error{
+        ErrorCode::archiverFailure, "{}: {}", operation,
+        reason ? reason : "libarchive failure"
+    };
+}
 
+Result<void> check(archive* handle, int status, const Str& operation) {
+    if (status != ARCHIVE_OK) {
+        return Error::unexpected(archiveError(handle, operation));
+    }
+    return {};
+}
+
+Result<Str> relativeName(const Path& root, const Path& path) {
+    const auto relative = path.lexicallyRelative(root).normalized();
+    if (relative.str().empty() || relative.isAbsolute() ||
+        relative.str() == ".." || relative.startsWith("../")) {
+        return Error::unexpected(
+            ErrorCode::archiverFailure,
+            "Archive path is outside its source root: '{}'", path.str()
+        );
+    }
+    return relative.str();
+}
+
+class ArchiveWriter : public NonCopyable, public NonMovable {
    public:
-    static Result<std::unique_ptr<ArchiveWriter>> create(
-        ArchiveFormat format, const Path& output, const FileSystem& fs
+    explicit ArchiveWriter(const FileSystem& fs) : m_fs(fs) {}
+
+    Result<void> write(
+        ArchiveType format, const Path& output,
+        std::span<const SourceTree> trees
     ) {
-        log::debug("Creating archive writer for {}", output.str());
-
-        auto* archive = archive_write_new();
-        if (not archive) {
+        m_archive.reset(archive_write_new());
+        if (not m_archive) {
             return Error::unexpected(
-                ErrorCode::archiverFailure, "Failed to create archive writer"
+                ErrorCode::archiverFailure, "Could not allocate archive writer"
             );
         }
-        NAMED_DEFER(archiveDestroyer) { archive_write_free(archive); };
-
-        if (format == ArchiveFormat::tgz) {
-            if (archive_write_add_filter_gzip(archive) != ARCHIVE_OK) {
-                return Error::unexpected(
-                    ErrorCode::archiverFailure, "Failed to add gzip filter"
+        return pipeline(
+            [this] {
+                return check(
+                    m_archive.get(),
+                    archive_write_set_bytes_in_last_block(m_archive.get(), 1),
+                    "Could not configure archive output"
                 );
-            }
-            if (archive_write_set_format_pax_restricted(archive) !=
-                ARCHIVE_OK) {
-                return Error::unexpected(
-                    ErrorCode::archiverFailure,
-                    "Failed to set pax restricted format"
-                );
-            }
-        } else {
-            if (archive_write_set_format_zip(archive) != ARCHIVE_OK) {
-                return Error::unexpected(
-                    ErrorCode::archiverFailure, "Failed to set zip format"
-                );
-            }
-            if (archive_write_zip_set_compression_deflate(archive) !=
-                ARCHIVE_OK) {
-                return Error::unexpected(
-                    ErrorCode::archiverFailure,
-                    "Failed to set deflate compression"
-                );
-            }
-        }
-
-        if (archive_write_open_filename(archive, output.str().c_str()) !=
-            ARCHIVE_OK) {
-            return Error::unexpected(
-                ErrorCode::archiverFailure,
-                "Failed to open archive for writing: {}", output.str()
-            );
-        }
-
-        archiveDestroyer.dismiss();
-        return std::make_unique<ArchiveWriter>(archive, fs, Guard{});
-    }
-
-    Result<void> write(std::span<const SourceTree> trees) {
-        for (const auto& tree : trees) {
-            if (auto r = writeSource(tree); not r) {
-                return r;
-            }
-        }
-        return {};
-    }
-
-    ArchiveWriter(archive* a, const FileSystem& fs, Guard)
-        : m_archive(a), m_fs(fs) {}
-
-    ~ArchiveWriter() {
-        if (m_archive) {
-            archive_write_close(m_archive);
-            archive_write_free(m_archive);
-        }
+            },
+            [this, format] { return configure(format); },
+            [this, &output] { return open(output); },
+            [this, trees] { return writeSources(trees); },
+            [this] { return finish(); }
+        );
     }
 
    private:
-    Result<void> writeSource(const SourceTree& tree) {
-        return writeLevel(tree.root, tree.nodes);
+    Result<void> configure(ArchiveType format) {
+        auto* writer = m_archive.get();
+        switch (format) {
+            case ArchiveType::zip:
+                return pipeline(
+                    [&] {
+                        return check(
+                            writer, archive_write_set_format_zip(writer),
+                            "Could not set ZIP format"
+                        );
+                    },
+                    [&] {
+                        return check(
+                            writer,
+                            archive_write_zip_set_compression_deflate(writer),
+                            "Could not enable ZIP compression"
+                        );
+                    }
+                );
+            case ArchiveType::tgz:
+                return pipeline(
+                    [&] {
+                        return check(
+                            writer,
+                            archive_write_set_format_pax_restricted(writer),
+                            "Could not set tar format"
+                        );
+                    },
+                    [&] {
+                        // POSIX filenames are bytes; avoid locale-dependent
+                        // conversion.
+                        return check(
+                            writer,
+                            archive_write_set_format_option(
+                                writer, "pax", "hdrcharset", "BINARY"
+                            ),
+                            "Could not preserve tar filenames"
+                        );
+                    },
+                    [&] {
+                        return check(
+                            writer, archive_write_add_filter_gzip(writer),
+                            "Could not enable gzip compression"
+                        );
+                    }
+                );
+            case ArchiveType::directory:
+                return Error::unexpected(
+                    ErrorCode::archiverFailure,
+                    "Archive snapshotter requires ZIP or TGZ format"
+                );
+        }
+        std::unreachable();
     }
 
-    Result<void> writeLevel(const Path& root, const SourceTree::Nodes& nodes) {
-        for (const auto& node : nodes | std::views::values) {
-            writeEntry(root, node);
+    static la_ssize_t writeOutput(
+        archive* writer, void* context, const void* data, size_t size
+    ) {
+        auto& self = *static_cast<ArchiveWriter*>(context);
+        auto result =
+            self.m_file->write({static_cast<const Byte*>(data), size});
+        if (not result) {
+            archive_set_error(
+                writer, 0, "%s", result.error().message().c_str()
+            );
+            return -1;
+        }
+        return static_cast<la_ssize_t>(size);
+    }
 
-            if (not node.children.empty()) {
-                if (auto r = writeLevel(root, node.children); not r) {
-                    return r;
+    Result<void> open(const Path& output) {
+        m_output = output;
+        return m_fs.openFile(output, FileMode::createNew)
+            .transform_error([&](const Error& error) {
+                return Error{
+                    ErrorCode::archiverFailure,
+                    "Could not open archive '{}': {}", output.str(),
+                    error.message()
+                };
+            })
+            .and_then([&](std::unique_ptr<File> file) {
+                m_file = std::move(file);
+                return check(
+                    m_archive.get(),
+                    archive_write_open(
+                        m_archive.get(), this, nullptr, writeOutput, nullptr
+                    ),
+                    fmt::format("Could not open archive '{}'", output.str())
+                );
+            });
+    }
+
+    Result<void> finish() {
+        return pipeline(
+            [&] {
+                return check(
+                    m_archive.get(), archive_write_close(m_archive.get()),
+                    "Could not finalize archive"
+                );
+            },
+            [&] {
+                return m_file->close().transform_error([](const Error& error) {
+                    return Error{
+                        ErrorCode::archiverFailure,
+                        "Could not finalize archive: {}", error.message()
+                    };
+                });
+            }
+        );
+    }
+
+    Result<void> writeSources(std::span<const SourceTree> trees) {
+        for (const auto& tree : trees) {
+            auto result = tree.root.absolute().and_then([&](const Path& root) {
+                return writeNodes(root, tree.nodes);
+            });
+            if (not result) {
+                return result;
+            }
+        }
+        return {};
+    }
+
+    Result<void> writeNodes(const Path& root, const SourceTree::Nodes& nodes) {
+        for (const auto& node : nodes | std::views::values) {
+            auto result = pipeline(
+                [&] {
+                    return writePath(
+                        root, Path::join(root, node.relativePath).normalized(),
+                        node.children.empty()
+                    );
+                },
+                [&] { return writeNodes(root, node.children); }
+            );
+            if (not result) {
+                return result;
+            }
+        }
+        return {};
+    }
+
+    Result<void> writePath(const Path& root, const Path& path, bool recursive) {
+        auto name = relativeName(root, path);
+        if (not name) {
+            return Error::unexpected(name.error());
+        }
+        auto info = m_fs.info(path);
+        if (not info) {
+            return Error::unexpected(info.error());
+        }
+        if (not recursive && info->type != FileInfo::Type::directory) {
+            return Error::unexpected(
+                ErrorCode::archiverFailure,
+                "Selected parent is not a directory: '{}'", path.str()
+            );
+        }
+        return writeEntry(path, *name, *info).and_then([&]() -> Result<void> {
+            if (not recursive || info->type != FileInfo::Type::directory) {
+                return {};
+            }
+            auto children = m_fs.listEntries(path);
+            if (not children) {
+                return Error::unexpected(children.error());
+            }
+            for (const auto& child : *children) {
+                if (auto result = writePath(root, child.normalized(), true);
+                    not result) {
+                    return result;
                 }
             }
-        }
-
-        return {};
+            return {};
+        });
     }
 
-    Result<void> writeEntry(const Path& root, const SourceTree::Node& node) {
-        using Entry =
-            std::unique_ptr<archive_entry, decltype(&archive_entry_free)>;
+    Result<bool> registerEntry(const Str& name, FileInfo::Type type) {
+        const auto [previous, inserted] = m_entries.emplace(name, type);
+        if (not inserted && (type != FileInfo::Type::directory ||
+                             previous->second != FileInfo::Type::directory)) {
+            return Error::unexpected(
+                ErrorCode::archiverFailure, "Conflicting archive path: '{}'",
+                name
+            );
+        }
+        return inserted;
+    }
 
-        Entry entry(archive_entry_new(), &archive_entry_free);
-
+    Result<void> writeEntry(
+        const Path& path, const Str& name, const FileInfo& info
+    ) {
+        if (info.type == FileInfo::Type::other) {
+            return Error::unexpected(
+                ErrorCode::archiverFailure,
+                "Unsupported source file type: '{}'", path.str()
+            );
+        }
+        if (info.type == FileInfo::Type::regular) {
+            auto same = m_fs.equivalent(path, m_output);
+            if (not same) {
+                return Error::unexpected(same.error());
+            }
+            if (*same) {
+                return Error::unexpected(
+                    ErrorCode::archiverFailure,
+                    "Can't add archive to itself: '{}'", path.str()
+                );
+            }
+        }
+        auto inserted = registerEntry(name, info.type);
+        if (not inserted) {
+            return Error::unexpected(inserted.error());
+        }
+        if (not *inserted) {
+            return {};
+        }
+        EntryHandle entry{archive_entry_new(), archive_entry_free};
         if (not entry) {
             return Error::unexpected(
-                ErrorCode::archiverFailure, "Failed to create archive entry"
+                ErrorCode::archiverFailure, "Could not allocate archive entry"
             );
         }
-
-        const auto fullPath = Path::join(root, node.relativePath);
-        bool isDirectory = node.type == SourceTree::NodeType::directory;
-
-        archive_entry_set_pathname(entry.get(), node.relativePath.c_str());
-        archive_entry_set_filetype(
-            entry.get(), isDirectory ? AE_IFDIR : AE_IFREG
+        const auto type = info.type == FileInfo::Type::directory ? AE_IFDIR
+                          : info.type == FileInfo::Type::symlink ? AE_IFLNK
+                                                                 : AE_IFREG;
+        archive_entry_set_pathname(entry.get(), name.c_str());
+        archive_entry_set_filetype(entry.get(), type);
+        archive_entry_set_perm(entry.get(), info.permissions);
+        archive_entry_set_uid(entry.get(), info.owner);
+        archive_entry_set_gid(entry.get(), info.group);
+        archive_entry_set_size(entry.get(), info.size);
+        const auto seconds =
+            std::chrono::floor<std::chrono::seconds>(info.modified);
+        archive_entry_set_mtime(
+            entry.get(), seconds.time_since_epoch().count(),
+            (info.modified - seconds).count()
         );
-
-        archive_entry_set_perm(entry.get(), 0777);
-
-        u64 fileSize = 0u;
-
-        if (not isDirectory) {
-            if (auto r = m_fs.fileSize(fullPath); not r) {
-                return Error::unexpected(r.error());
-            } else {
-                fileSize = r.value();
-            }
+        if (info.type == FileInfo::Type::symlink) {
+            archive_entry_set_symlink(entry.get(), info.linkTarget.c_str());
         }
-
-        archive_entry_set_size(entry.get(), fileSize);
-
-        // const auto mtime =
-        // std::chrono::time_point_cast<std::chrono::seconds>(
-        // fs::file_time_type::clock::to_sys(fs::last_write_time(path))
-        //         archive_entry_set_mtime(
-        //             entry.get(), mtime.time_since_epoch().count(), 0
-        //         );
-
-        if (archive_write_header(m_archive, entry.get()) != ARCHIVE_OK) {
-            return Error::unexpected(
-                ErrorCode::archiverFailure, "Failed to write archive header"
-            );
-        }
-
-        if (not isDirectory) {
-            auto data = m_fs.readBinary(fullPath);
-
-            if (not data) {
-                return Error::unexpected(
-                    ErrorCode::archiverFailure, "Failed to read file: {}",
-                    fullPath.str()
+        auto* writer = m_archive.get();
+        return pipeline(
+            [&] {
+                return check(
+                    writer, archive_write_header(writer, entry.get()),
+                    fmt::format("Could not write header for '{}'", name)
+                );
+            },
+            [&] {
+                return info.type == FileInfo::Type::regular
+                           ? copyData(path, info.size)
+                           : Result<void>{};
+            },
+            [&] {
+                return check(
+                    writer, archive_write_finish_entry(writer),
+                    fmt::format("Could not finish entry '{}'", name)
                 );
             }
+        );
+    }
 
-            auto n = archive_write_data(
-                m_archive, data.value().data(), data.value().size()
-            );
-
-            if (n < 0) {
-                return Error::unexpected(
-                    ErrorCode::archiverFailure, "Failed to write file data: {}",
-                    fullPath.str()
-                );
+    Result<void> writeData(std::span<const Byte> data, const Path& path) {
+        while (not data.empty()) {
+            const auto written =
+                archive_write_data(m_archive.get(), data.data(), data.size());
+            if (written <= 0) {
+                return Error::unexpected(archiveError(
+                    m_archive.get(),
+                    fmt::format("Could not write file '{}'", path.str())
+                ));
             }
+            data = data.subspan(static_cast<size_t>(written));
         }
-
-        if (archive_write_finish_entry(m_archive) != ARCHIVE_OK) {
-            return Error::unexpected(
-                ErrorCode::archiverFailure, "Failed to finish archive entry"
-            );
-        }
-
         return {};
     }
 
-    archive* m_archive{nullptr};
+    Result<void> copyData(const Path& path, u64 expectedSize) {
+        auto file = m_fs.openFile(path, FileMode::read);
+        if (not file) {
+            return Error::unexpected(file.error());
+        }
+        std::array<Byte, archiveBufferSize> buffer;
+        u64 total = 0;
+        for (;;) {
+            auto count = (*file)->read(buffer);
+            if (not count) {
+                return Error::unexpected(count.error());
+            }
+            if (*count == 0) {
+                break;
+            }
+            if (auto result = writeData(std::span{buffer}.first(*count), path);
+                not result) {
+                return result;
+            }
+            total += *count;
+        }
+        if (total != expectedSize) {
+            return Error::unexpected(
+                ErrorCode::archiverFailure,
+                "File size changed while archiving '{}'", path.str()
+            );
+        }
+        return (*file)->close();
+    }
+
     const FileSystem& m_fs;
+    Path m_output;
+    std::unique_ptr<File> m_file;
+    ArchiveHandle m_archive{nullptr, archive_write_free};
+    std::unordered_map<Str, FileInfo::Type> m_entries;
 };
 
-ZipSnapshotter::ZipSnapshotter(const FileSystem& fs) : m_fs(fs) {}
+}  // namespace
 
-Result<SnapshotMetadata> ZipSnapshotter::snapshot(const SnapshotArgs& args) {
-    auto dest = Path::join(args.workspace, args.name + ".zip");
-    auto archiver = ArchiveWriter::create(ArchiveFormat::zip, dest, m_fs);
+ArchiveSnapshotter::ArchiveSnapshotter(const FileSystem& fs, ArchiveType format)
+    : m_format(format), m_fs(fs) {}
 
-    if (not archiver) {
-        return Error::unexpected(
-            ErrorCode::archiverFailure, "Could not create zip archiver: {}",
-            archiver.error()
-        );
-    }
-
-    if (auto r = archiver->get()->write(args.trees); not r) {
-        return Error::unexpected(
-            ErrorCode::archiverFailure, "Failed to write snapshot: {}",
-            r.error()
-        );
-    }
-
-    const auto archiveName = args.name + ".zip";
-
-    return SnapshotMetadata{
-        .name = archiveName,
-        .location = Location::local(Path::join(args.workspace, archiveName)),
-    };
+Result<SnapshotMetadata> ArchiveSnapshotter::snapshot(
+    const SnapshotArgs& args
+) {
+    const auto name = args.name + "." + archiveTypeToStr(m_format);
+    const auto output = Path::join(args.workspace, name);
+    ArchiveWriter writer{m_fs};
+    return writer.write(m_format, output, args.trees)
+        .transform([&] {
+            return SnapshotMetadata{
+                .name = name, .location = Location::local(output)
+            };
+        })
+        .transform_error([](const Error& error) {
+            return Error{ErrorCode::archiverFailure, error.message()};
+        });
 }
 
 }  // namespace anchor

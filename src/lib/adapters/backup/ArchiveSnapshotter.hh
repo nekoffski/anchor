@@ -6,19 +6,15 @@
 
 namespace anchor {
 
-class ZipSnapshotter : public Snapshotter {
+class ArchiveSnapshotter : public Snapshotter {
    public:
-    explicit ZipSnapshotter(const FileSystem& fs);
+    ArchiveSnapshotter(const FileSystem& fs, ArchiveType format);
 
     Result<SnapshotMetadata> snapshot(const SnapshotArgs& args) override;
 
    private:
+    ArchiveType m_format;
     const FileSystem& m_fs;
-};
-
-class TgzSnapshotter : public Snapshotter {
-   public:
-   private:
 };
 
 }  // namespace anchor

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <string>
 #include <vector>
 
@@ -31,7 +32,10 @@ class Path {
     static Path join(const Path& base, const Path& relative);
     static Path cwd();
 
-    Str lexicallyRelative(const Path& base) const;
+    Path lexicallyRelative(const Path& base) const;
+    Path normalized() const;
+    Result<Path> absolute() const;
+    bool isAbsolute() const;
     Path resolveEnv() const;
 
     bool startsWith(const Str& prefix) const;
@@ -40,6 +44,32 @@ class Path {
 
    private:
     Str m_path;
+};
+
+enum class FileMode { read, createNew };
+
+// Implementations release resources on destruction; close() reports close
+// errors.
+class File : public NonCopyable, public NonMovable {
+   public:
+    virtual ~File() = default;
+
+    // A successful read returns zero at EOF; write consumes the entire span.
+    virtual Result<size_t> read(std::span<Byte> buffer) = 0;
+    virtual Result<void> write(std::span<const Byte> data) = 0;
+    virtual Result<void> close() = 0;
+};
+
+struct FileInfo {
+    enum class Type { regular, directory, symlink, other };
+
+    Type type;
+    u64 size;
+    u32 permissions;
+    u64 owner;
+    u64 group;
+    std::chrono::sys_time<std::chrono::nanoseconds> modified;
+    Str linkTarget;
 };
 
 class FileSystem : public NonCopyable, public NonMovable {
@@ -56,11 +86,19 @@ class FileSystem : public NonCopyable, public NonMovable {
         const Path& from, const Path& to
     ) const;
     virtual Result<u64> fileSize(const Path& path) const;
+    virtual Result<FileInfo> info(const Path& path) const;
+    virtual Result<bool> equivalent(
+        const Path& first, const Path& second
+    ) const;
+    virtual Result<std::unique_ptr<File>> openFile(
+        const Path& path, FileMode mode
+    ) const;
 
     virtual std::vector<Path> glob(const Str& pattern) const;
 
     virtual Result<std::vector<Path>> listFiles(const Path& path) const;
     virtual Result<std::vector<Path>> listDirectories(const Path& path) const;
+    virtual Result<std::vector<Path>> listEntries(const Path& path) const;
     virtual Result<void> remove(const Path& path) const;
     virtual Result<void> removeAll(const Path& path) const;
     virtual Result<void> touch(const Path& path) const;
