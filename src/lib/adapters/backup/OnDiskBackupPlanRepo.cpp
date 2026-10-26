@@ -40,6 +40,20 @@ Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
     }
     plan.archiveType = *archiveType;
 
+    if (settings["cron"].IsDefined()) {
+        auto expression = yamlField<Str>(settings, "cron");
+        if (not expression) {
+            return Error::unexpected(expression.error());
+        }
+        auto cron = Cron::fromString(*expression);
+        if (not cron) {
+            return Error::unexpected(
+                ErrorCode::invalidConfig, cron.error().message()
+            );
+        }
+        plan.cron = std::move(*cron);
+    }
+
     const auto sources = (*file)["sources"];
     if (not sources.IsDefined() or not sources.IsSequence()) {
         return Error::unexpected(

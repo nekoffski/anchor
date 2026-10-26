@@ -2,6 +2,11 @@
 
 namespace anchor {
 
+bool isActive(BackupRunState state) {
+    return state != BackupRunState::completed &&
+           state != BackupRunState::failed;
+}
+
 Str backupRunStateToString(BackupRunState state) {
     switch (state) {
         case BackupRunState::queued:

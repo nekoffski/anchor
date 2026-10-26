@@ -24,14 +24,4 @@ class RequestSender {
     RequestQueue& m_q;
 };
 
-class RequestReceiver {
-   public:
-    explicit RequestReceiver(RequestQueue& queue) : m_q(queue) {}
-
-    Opt<RequestWrapper> tryReceive() { return m_q.tryPop(); }
-
-   private:
-    RequestQueue& m_q;
-};
-
 }  // namespace anchor

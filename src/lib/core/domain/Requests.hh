@@ -13,6 +13,7 @@ struct DiagnosticRequest {
 
 struct TriggerBackupRequest {
     Str name;
+    bool scheduled{false};
 };
 
 struct GetBackupsRequest {};

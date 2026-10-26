@@ -8,50 +8,89 @@ namespace anchor {
 BackupService::BackupService(
     const Config& cfg, const FileSystem& fs, Ports ports
 )
-    : m_cfg(cfg),
+    : Thread("BackupService"),
+      m_cfg(cfg),
       m_fs(fs),
       m_ports(ports),
       m_orchestrator(m_ports.backupRepo(), m_ports.executor()),
-      m_scheduler(*this, m_orchestrator) {
+      m_scheduler(m_ports.backupRepo(), sender()) {
     readPlans();
+}
 
+void BackupService::start() {
     m_orchestrator.start();
+    Thread::start();
     m_scheduler.start();
 }
 
 BackupService::~BackupService() {
-    m_orchestrator.stop();
-    m_scheduler.stop();
-    Thread::join(m_scheduler, m_orchestrator);
+    stop();
+    join();
 }
 
-Result<Uuid> BackupService::triggerBackup(const Str& name) {
+void BackupService::stop() {
+    m_scheduler.stop();
+    m_scheduler.join();
+    m_requests.close();
+}
+
+void BackupService::run() {
+    while (auto request = m_requests.pop()) {
+        request->promise.set_value(
+            std::visit(
+                [&](const auto& value) { return handle(value); },
+                request->request
+            )
+        );
+    }
+    m_orchestrator.stop();
+    m_orchestrator.join();
+}
+
+Response BackupService::handle(const TriggerBackupRequest& request) {
+    const auto& name = request.name;
     log::debug("Triggering backup: '{}'", name);
 
     const auto backup = m_ports.backupRepo().get(name);
     if (not backup) {
         log::error("Backup plan not found: '{}'", name);
-        return Error::unexpected(
-            ErrorCode::invalidArgument, "Backup plan not found"
-        );
+        return ErrorResponse{
+            Error{ErrorCode::invalidArgument, "Backup plan not found"}
+        };
+    }
+
+    if (request.scheduled && (not backup->enabled ||
+                              (backup->run && isActive(backup->run->state)))) {
+        log::debug("Skipping scheduled backup '{}'", name);
+        return AckResponse{};
     }
 
     auto args = preflightBackup(*backup);
 
     if (not args) {
         log::error("Failed to preflight backup: '{}'", name);
-        return Error::unexpected(args.error());
+        return ErrorResponse{args.error()};
     }
 
-    return m_orchestrator.enqueueBackup(std::move(*args));
+    auto result = m_orchestrator.enqueueBackup(std::move(*args));
+    if (not result) {
+        log::error("Could not enqueue backup '{}': {}", name, result.error());
+        return ErrorResponse{result.error()};
+    }
+    return AckResponse{};
 }
 
-std::vector<Backup> BackupService::getBackups() {
-    return m_ports.backupRepo().getAll();
+Response BackupService::handle(const GetBackupsRequest&) {
+    return GetBackupsResponse{m_ports.backupRepo().getAll()};
+}
+
+Response BackupService::handle(const DiagnosticRequest& request) {
+    log::debug("Received diagnostic request: {}", request.details);
+    return AckResponse{};
 }
 
 Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {
-    if (backup.run) {
+    if (backup.run && isActive(backup.run->state)) {
         log::info("Backup '{}' is already running.", backup.plan.name);
         return Error::unexpected(
             ErrorCode::alreadyRunning, "Backup is already running"
@@ -106,6 +145,7 @@ void BackupService::readPlans() {
             m_ports.backupRepo().get(plan.name).value_or(Backup{plan});
         backup.plan = plan;
         m_ports.backupRepo().put(backup);
+        m_scheduler.add(plan.name);
     });
 }
 

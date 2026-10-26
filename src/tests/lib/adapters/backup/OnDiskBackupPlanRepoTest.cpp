@@ -91,6 +91,40 @@ TEST_F(ConfigTest, PlanRepoParsesYmlPlansWithEmptySources) {
     EXPECT_TRUE(plans.front().sources.empty());
 }
 
+TEST_F(ConfigTest, PlanRepoParsesOptionalCronAndRejectsInvalidSchedules) {
+    OnDiskBackupPlanRepo repo{root, fs};
+    auto write = [&](const Str& cron) {
+        ASSERT_TRUE(fs.writeFile(
+            path("scheduled.yaml"),
+            "settings:\n  destination: local:///backup\n  archive: "
+            "directory\n" +
+                cron + "sources: []\n"
+        ));
+    };
+    write("  cron: '0 */5 * * * *'\n");
+    std::vector<BackupPlan> plans;
+    repo.forEach([&](const BackupPlan& plan) { plans.push_back(plan); });
+    ASSERT_EQ(plans.size(), 1);
+    ASSERT_TRUE(plans.front().cron);
+    EXPECT_TRUE(plans.front().cron->matches(
+        std::chrono::sys_seconds{std::chrono::seconds{1'704'067'200}}
+    ));
+    write("");
+    plans.clear();
+    repo.forEach([&](const BackupPlan& plan) { plans.push_back(plan); });
+    ASSERT_EQ(plans.size(), 1);
+    EXPECT_FALSE(plans.front().cron);
+    for (const auto* invalid :
+         {"null", "[]", "{}", "''", "'invalid'", "'* * * * *'",
+          "'60 * * * * *'"}) {
+        SCOPED_TRACE(invalid);
+        write(Str{"  cron: "} + invalid + "\n");
+        repo.forEach([](const BackupPlan&) {
+            FAIL() << "invalid cron must reject the plan";
+        });
+    }
+}
+
 TEST_F(ConfigTest, PlanRepoRejectsMalformedSourcesAndIncludes) {
     const std::vector<Str> invalid{
         "sources: null",

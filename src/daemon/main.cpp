@@ -11,8 +11,6 @@
 #include "base/Unwrap.hh"
 #include "base/runtime/SignalHandler.hh"
 #include "core/services/BackupService.hh"
-#include "core/services/BackupServiceRunner.hh"
-#include "core/services/RequestQueue.hh"
 
 using namespace anchor;
 
@@ -34,14 +32,9 @@ int main(int argc, const char** argv) {
 
     FileSystem fs;
     SignalHandler signals;
-    RequestQueue requestQueue;
 
     OnDiskBackupPlanRepo backupPlanRepo{cfg.paths.backupPlans, fs};
     log::expect(backupPlanRepo.valid());
-
-    AsioController controller{RequestSender{requestQueue}};
-    AsioServer server{cfg, controller};
-    server.start();
 
     Snapshotters snapshotters;
     snapshotters.add<DirectorySnapshotter>(ArchiveType::directory, fs);
@@ -58,10 +51,11 @@ int main(int argc, const char** argv) {
     };
 
     BackupService backupService{cfg, fs, ports};
-    BackupServiceRunner backupServiceRunner{
-        backupService, RequestReceiver{requestQueue}
-    };
-    backupServiceRunner.start();
+    backupService.start();
+
+    AsioController controller{backupService.sender()};
+    AsioServer server{cfg, controller};
+    server.start();
 
     signals.wait([&](Signal s) {
         log::info("received signal: {}", toString(s));
@@ -70,14 +64,13 @@ int main(int argc, const char** argv) {
             log::info("received shutdown request");
 
             server.stop();
-            backupServiceRunner.stop();
-            requestQueue.close();
+            backupService.stop();
 
             return SignalAction::stop;
         }
         return SignalAction::waitForNext;
     });
 
-    Thread::join(server, backupServiceRunner);
+    Thread::join(server, backupService);
     return 0;
 }

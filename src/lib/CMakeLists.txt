@@ -34,7 +34,6 @@ add_library(anchor STATIC
     "adapters/backup/ArchiveSnapshotter.cpp"
     # -- core
     "core/services/BackupService.cpp"
-    "core/services/BackupServiceRunner.cpp"
     "core/services/BackupScheduler.cpp"
     "core/services/BackupOrchestrator.cpp"
     "core/services/BackupRun.cpp"

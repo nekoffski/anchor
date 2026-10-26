@@ -1,11 +1,14 @@
 #include "BackupOrchestrator.hh"
 
-#include "base/Time.hh"
-
 namespace anchor {
 
 BackupOrchestrator::BackupOrchestrator(BackupRepo& repo, Executor& executor)
     : Thread("BackupOrchestrator"), m_repo(repo), m_executor(executor) {}
+
+BackupOrchestrator::~BackupOrchestrator() {
+    stop();
+    join();
+}
 
 Result<Uuid> BackupOrchestrator::enqueueBackup(BackupRunArgs&& args) {
     const auto name = args.plan.name;
@@ -16,9 +19,15 @@ Result<Uuid> BackupOrchestrator::enqueueBackup(BackupRunArgs&& args) {
         .state = BackupRunState::queued, .uuid = uuid
     };
 
+    const auto previous = m_repo.getRunStatus(name);
     m_repo.updateRunStatus(name, initialStatus);
 
     if (not m_queue.push(std::move(run))) {
+        if (previous) {
+            m_repo.updateRunStatus(name, *previous);
+        } else {
+            m_repo.clearRunStatus(name);
+        }
         return Error::unexpected(
             ErrorCode::internalError, "Failed to enqueue backup"
         );
@@ -29,33 +38,8 @@ Result<Uuid> BackupOrchestrator::enqueueBackup(BackupRunArgs&& args) {
 
 void BackupOrchestrator::stop() { m_queue.close(); }
 
-void BackupOrchestrator::checkFinishedRuns() {
-    std::vector<Str> completedBackups;
-
-    m_repo.forEach([&](const Backup& backup) {
-        if (backup.run and backup.run->state == BackupRunState::completed) {
-            log::debug("Backup '{}' has completed.", backup.plan.name);
-            completedBackups.push_back(backup.plan.name);
-        }
-    });
-    for (const auto& name : completedBackups) {
-        m_repo.clearRunStatus(name);
-    }
-}
-
 void BackupOrchestrator::run() {
-    const auto timeout = 150ms;
-
-    for (;;) {
-        auto run = m_queue.popFor(timeout);
-
-        if (not run) {
-            if (run.error().code() == ErrorCode::timeout) {
-                checkFinishedRuns();
-                continue;
-            }
-            break;
-        }
+    while (auto run = m_queue.pop()) {
         trigger(std::move(*run));
     }
 }

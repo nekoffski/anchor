@@ -2,6 +2,7 @@
 
 #include <fmt/core.h>
 
+#include "Cron.hh"
 #include "Location.hh"
 #include "Source.hh"
 #include "base/Concepts.hh"
@@ -20,6 +21,7 @@ struct BackupPlan {
     ArchiveType archiveType;
     Location destination;
     std::vector<Source> sources;
+    Opt<Cron> cron;
 };
 
 enum class BackupRunState {
@@ -31,6 +33,7 @@ enum class BackupRunState {
     failed
 };
 Str backupRunStateToString(BackupRunState state);
+bool isActive(BackupRunState state);
 
 struct BackupRunStatus {
     BackupRunState state;

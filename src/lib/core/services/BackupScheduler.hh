@@ -1,29 +1,52 @@
 #pragma once
 
-#include "BackupOrchestrator.hh"
-#include "BackupRun.hh"
-#include "base/Concepts.hh"
-#include "base/Core.hh"
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
+
+#include "RequestQueue.hh"
 #include "base/runtime/Thread.hh"
-#include "core/domain/Backup.hh"
+#include "core/ports/Backup.hh"
 
 namespace anchor {
 
 class BackupScheduler : public Thread {
    public:
-    explicit BackupScheduler(
-        BackupPreflighter& preflighter, BackupOrchestrator& orchestrator
-    );
+    explicit BackupScheduler(const BackupRepo& repo, RequestSender sender);
+    ~BackupScheduler() override;
 
     void stop();
-
-    void add(const Backup& backup);
+    void add(
+        const Str& name,
+        std::chrono::sys_seconds now = std::chrono::floor<std::chrono::seconds>(
+            std::chrono::system_clock::now()
+        )
+    );
+    // Called by the worker, or directly without starting the thread.
+    void tick(std::chrono::sys_seconds now);
 
    private:
-    void run();
+    struct Deadline {
+        Str name;
+        std::chrono::sys_seconds at;
+    };
 
-    BackupPreflighter& m_preflighter;
-    BackupOrchestrator& m_orchestrator;
+    void run() override;
+    void scheduleNext(const Str& name, std::chrono::sys_seconds now);
+    void rebuildDeadlines(std::chrono::sys_seconds now);
+    static bool shouldSchedule(
+        const Backup& backup, std::chrono::sys_seconds now
+    );
+
+    const BackupRepo& m_repo;
+    RequestSender m_sender;
+    // A heap vector allows replacing deadlines without retaining stale entries.
+    std::vector<Deadline> m_deadlines;
+    Opt<std::chrono::sys_seconds> m_lastTick;
+    std::mutex m_mutex;
+    std::condition_variable m_condition;
+    u64 m_revision{0};
+    bool m_stopped{false};
 };
 
 }  // namespace anchor

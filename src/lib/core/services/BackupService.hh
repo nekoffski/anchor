@@ -1,36 +1,35 @@
 #pragma once
 
 #include "BackupOrchestrator.hh"
-#include "BackupRun.hh"
 #include "BackupScheduler.hh"
-#include "base/Concepts.hh"
 #include "base/Config.hh"
-#include "base/Core.hh"
-#include "core/domain/Backup.hh"
 #include "core/ports/Ports.hh"
 
 namespace anchor {
 
-class BackupService : public BackupPreflighter {
+class BackupService : public Thread {
    public:
     explicit BackupService(
         const Config& cfg, const FileSystem& fs, Ports ports
     );
+    ~BackupService() override;
 
-    ~BackupService();
-
-    Result<Uuid> triggerBackup(const Str& name);
-    std::vector<Backup> getBackups();
+    void start();
+    void stop();
+    RequestSender sender() { return RequestSender{m_requests}; }
 
    private:
-    Result<BackupRunArgs> preflightBackup(const Backup& backup) override;
-
+    void run() override;
+    Response handle(const TriggerBackupRequest& request);
+    Response handle(const GetBackupsRequest& request);
+    Response handle(const DiagnosticRequest& request);
+    Result<BackupRunArgs> preflightBackup(const Backup& backup);
     void readPlans();
 
     Config m_cfg;
     const FileSystem& m_fs;
     Ports m_ports;
-
+    RequestQueue m_requests;
     BackupOrchestrator m_orchestrator;
     BackupScheduler m_scheduler;
 };

@@ -121,13 +121,12 @@ TEST(ThreadSafeQueue, TimedPopWakesOnPushAndClose) {
 TEST(RequestQueue, SendsReceivesAndRejectsRequestsAfterClosing) {
     RequestQueue queue;
     RequestSender sender{queue};
-    RequestReceiver receiver{queue};
-    EXPECT_FALSE(receiver.tryReceive());
+    EXPECT_FALSE(queue.tryPop());
     auto response = sender.send(TriggerBackupRequest{"daily"});
     ASSERT_TRUE(response);
     EXPECT_TRUE(response->valid());
     EXPECT_EQ(response->wait_for(0ms), std::future_status::timeout);
-    auto request = receiver.tryReceive();
+    auto request = queue.tryPop();
     ASSERT_TRUE(request);
     ASSERT_TRUE(std::holds_alternative<TriggerBackupRequest>(request->request));
     EXPECT_EQ(std::get<TriggerBackupRequest>(request->request).name, "daily");
@@ -138,19 +137,18 @@ TEST(RequestQueue, SendsReceivesAndRejectsRequestsAfterClosing) {
     auto rejected = sender.send(DiagnosticRequest{"details"});
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code(), ErrorCode::queueError);
-    EXPECT_FALSE(receiver.tryReceive());
+    EXPECT_FALSE(queue.tryPop());
 }
 
 TEST(RequestQueue, DeliversResponsesToMatchingSenders) {
     RequestQueue queue;
     RequestSender sender{queue};
-    RequestReceiver receiver{queue};
     auto diagnostic = sender.send(DiagnosticRequest{"details"});
     auto backup = sender.send(TriggerBackupRequest{"daily"});
     ASSERT_TRUE(diagnostic);
     ASSERT_TRUE(backup);
-    auto first = receiver.tryReceive();
-    auto second = receiver.tryReceive();
+    auto first = queue.tryPop();
+    auto second = queue.tryPop();
     ASSERT_TRUE(first);
     ASSERT_TRUE(second);
     ASSERT_TRUE(std::holds_alternative<DiagnosticRequest>(first->request));

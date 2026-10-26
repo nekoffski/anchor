@@ -36,6 +36,8 @@ make build-debug
 make test         # build Debug and run the unit tests
 ```
 
+Backup execution and scheduling are described in [docs/scheduling.md](docs/scheduling.md).
+
 ## Example backup manifest
 
 Save this as `personal.yaml` in the directory configured by the daemon's
@@ -46,6 +48,7 @@ filename without its extension becomes the backup name (`personal`).
 settings:
   archive: directory
   destination: local://$HOME/backups/anchor
+  cron: '0 0 2 * * *'  # optional: daily at 02:00 in the daemon's local timezone
 
 sources:
   - root: $HOME
@@ -63,3 +66,7 @@ paths are preserved in the snapshot, such as `Documents/notes.txt`.
 `$HOME` is expanded in source roots and local destination paths. The destination
 receives a separate directory for each snapshot. Create the destination
 directory before running a backup.
+
+Omit `cron` for a manual-only plan. Scheduled occurrences are skipped while the
+backup is queued or running, and missed times are not replayed after downtime
+or sleep. Plans are loaded at startup; restart the daemon after editing one.
