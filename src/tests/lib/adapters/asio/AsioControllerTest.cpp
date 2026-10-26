@@ -6,14 +6,21 @@
 #include "proto/TriggerBackupRequest.hh"
 
 namespace anchor::test {
+using namespace std::chrono_literals;
 
 TEST(AsioController, DiagnosticRequestsAreAcknowledgedAndQueued) {
     RequestQueue queue;
     AsioController controller{RequestSender{queue}};
-    auto response = controller.handle(proto::DiagnosticRequest{"details"});
-    ASSERT_NE(response->as<proto::AckResponse>(), nullptr);
-    auto request = RequestReceiver{queue}.tryReceive();
+    auto response = std::async(std::launch::async, [&] {
+        return controller.handle(proto::DiagnosticRequest{"details"});
+    });
+    auto request = queue.popFor(1s);
+    queue.close();
     ASSERT_TRUE(request);
+    EXPECT_EQ(response.wait_for(0ms), std::future_status::timeout);
+    request->promise.set_value(AckResponse{});
+    ASSERT_EQ(response.wait_for(1s), std::future_status::ready);
+    ASSERT_NE(response.get()->as<proto::AckResponse>(), nullptr);
     ASSERT_TRUE(std::holds_alternative<DiagnosticRequest>(request->request));
     EXPECT_EQ(std::get<DiagnosticRequest>(request->request).details, "details");
     EXPECT_FALSE(queue.tryPop());
@@ -22,15 +29,21 @@ TEST(AsioController, DiagnosticRequestsAreAcknowledgedAndQueued) {
 TEST(AsioController, BackupRequestsAreAcknowledgedAndQueued) {
     RequestQueue queue;
     AsioController controller{RequestSender{queue}};
-    auto response = controller.handle(proto::TriggerBackupRequest{"daily"});
-    ASSERT_NE(response->as<proto::AckResponse>(), nullptr);
-    auto request = queue.tryPop();
+    auto response = std::async(std::launch::async, [&] {
+        return controller.handle(proto::TriggerBackupRequest{"daily"});
+    });
+    auto request = queue.popFor(1s);
+    queue.close();
     ASSERT_TRUE(request);
+    EXPECT_EQ(response.wait_for(0ms), std::future_status::timeout);
+    request->promise.set_value(AckResponse{});
+    ASSERT_EQ(response.wait_for(1s), std::future_status::ready);
+    ASSERT_NE(response.get()->as<proto::AckResponse>(), nullptr);
     ASSERT_TRUE(std::holds_alternative<TriggerBackupRequest>(request->request));
     EXPECT_EQ(std::get<TriggerBackupRequest>(request->request).name, "daily");
 }
 
-TEST(AsioController, ClosedQueueReturnsConnectionFailureForBothRequests) {
+TEST(AsioController, ClosedQueueReturnsQueueErrorForBothRequests) {
     RequestQueue queue;
     queue.close();
     AsioController controller{RequestSender{queue}};
@@ -39,7 +52,7 @@ TEST(AsioController, ClosedQueueReturnsConnectionFailureForBothRequests) {
     for (const auto* response : {diagnostic.get(), backup.get()}) {
         auto* error = response->as<proto::ErrorResponse>();
         ASSERT_NE(error, nullptr);
-        EXPECT_EQ(error->error().code(), ErrorCode::connectionFailure);
+        EXPECT_EQ(error->error().code(), ErrorCode::queueError);
     }
     EXPECT_FALSE(queue.tryPop());
 }
@@ -50,7 +63,7 @@ TEST(AsioController, RejectsResponsesAsRequestsWithoutEnqueuing) {
     auto response = controller.handle(proto::AckResponse{});
     auto* error = response->as<proto::ErrorResponse>();
     ASSERT_NE(error, nullptr);
-    EXPECT_EQ(error->error().code(), ErrorCode::invalidRequest);
+    EXPECT_EQ(error->error().code(), ErrorCode::unknownRequest);
     EXPECT_FALSE(queue.tryPop());
 }
 

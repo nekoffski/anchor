@@ -22,6 +22,7 @@ BackupService::BackupService(
 BackupService::~BackupService() {
     m_orchestrator.stop();
     m_scheduler.stop();
+    Thread::join(m_scheduler, m_orchestrator);
 }
 
 Result<Uuid> BackupService::triggerBackup(const Str& name) {

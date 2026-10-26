@@ -1,5 +1,6 @@
 #include "TestSupport.hh"
 #include "core/domain/Backup.hh"
+#include "core/domain/Cron.hh"
 #include "core/domain/Location.hh"
 
 namespace anchor::test {
@@ -20,6 +21,7 @@ TEST(ArchiveType, RoundTripsSupportedTypesAndRejectsUnknownValues) {
 }
 
 TEST(BackupRunState, FormatsEveryState) {
+    EXPECT_EQ(backupRunStateToString(BackupRunState::queued), "queued");
     EXPECT_EQ(backupRunStateToString(BackupRunState::starting), "starting");
     EXPECT_EQ(
         backupRunStateToString(BackupRunState::snapshotting), "snapshotting"
@@ -27,6 +29,16 @@ TEST(BackupRunState, FormatsEveryState) {
     EXPECT_EQ(backupRunStateToString(BackupRunState::uploading), "uploading");
     EXPECT_EQ(backupRunStateToString(BackupRunState::completed), "completed");
     EXPECT_EQ(backupRunStateToString(BackupRunState::failed), "failed");
+}
+
+TEST(Cron, ParsesSixFieldExpressionsAndRejectsInvalidInput) {
+    EXPECT_TRUE(Cron::fromString("0 */5 * * * *"));
+    for (const auto* expression :
+         {"", "invalid", "* * * * *", "60 * * * * *"}) {
+        auto result = Cron::fromString(expression);
+        ASSERT_FALSE(result) << expression;
+        EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+    }
 }
 
 TEST(Location, ParsesAndFormatsLocalAndS3Locations) {

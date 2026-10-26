@@ -1,3 +1,5 @@
+#include <future>
+
 #include "TestSupport.hh"
 #include "adapters/backup/InMemoryBackupRepo.hh"
 #include "adapters/executors/InlineExecutor.hh"
@@ -47,6 +49,17 @@ TEST_F(BackupServiceTest, UnknownPlanDoesNotCreateRunOrScheduleWork) {
     EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
     EXPECT_EQ(result.error().message(), "Backup plan not found");
     EXPECT_FALSE(backups.get("missing"));
+}
+
+TEST_F(BackupServiceTest, RepeatedShutdownJoinsWorkersBeforeDestruction) {
+    for (int i = 0; i < 20; ++i) {
+        service.reset();
+        EXPECT_CALL(plans, forEach(_));
+        service = std::make_unique<BackupService>(
+            config, fs, Ports{backups, plans, snapshotters, stores, executor}
+        );
+    }
+    service.reset();
 }
 
 TEST_F(BackupServiceTest, LoadingPlansPreservesStoredBackupState) {
@@ -108,25 +121,100 @@ TEST_F(BackupServiceTest, MissingStoreDoesNotCreateRun) {
     EXPECT_TRUE(backups.get("daily"));
 }
 
-TEST_F(BackupServiceTest, MarksRunStartingBeforeSchedulingWork) {
+TEST_F(BackupServiceTest, MarksRunQueuedBeforeDispatchingWork) {
     addSnapshotter();
     addStore();
-    MoveOnlyFunction<void()> work;
+    std::promise<MoveOnlyFunction<void()>> submitted;
+    auto work = submitted.get_future();
     EXPECT_CALL(executor, call(_)).WillOnce(Invoke([&](auto callback) {
         auto status = backups.getRunStatus("daily");
-        ASSERT_TRUE(status);
-        EXPECT_EQ(status->state, BackupRunState::starting);
-        work = std::move(callback);
+        EXPECT_TRUE(status);
+        if (status) {
+            EXPECT_EQ(status->state, BackupRunState::queued);
+        }
+        submitted.set_value(std::move(callback));
     }));
     auto result = service->triggerBackup("daily");
+    auto duplicate = service->triggerBackup("daily");
+    const auto workStatus = work.wait_for(std::chrono::seconds{1});
+    service.reset();
+
     ASSERT_TRUE(result);
     EXPECT_TRUE(uuids::uuid::is_valid_uuid(*result));
     ASSERT_TRUE(backups.getRunStatus("daily"));
     EXPECT_EQ(backups.getRunStatus("daily")->uuid, *result);
-    ASSERT_TRUE(work);
-    auto duplicate = service->triggerBackup("daily");
+    ASSERT_EQ(workStatus, std::future_status::ready);
+    EXPECT_TRUE(work.get());
     ASSERT_FALSE(duplicate);
     EXPECT_EQ(duplicate.error().code(), ErrorCode::alreadyRunning);
+}
+
+TEST_F(BackupServiceTest, ShutdownDrainsQueuedBackupAndCompletesWork) {
+    auto* snapshotter = addSnapshotter();
+    auto* store = addStore();
+    EXPECT_CALL(executor, call(_)).WillOnce(Invoke([&](auto callback) {
+        const auto status = backups.getRunStatus("daily");
+        EXPECT_TRUE(status);
+        if (status) {
+            EXPECT_EQ(status->state, BackupRunState::queued);
+        }
+        callback();
+    }));
+    InSequence sequence;
+    EXPECT_CALL(fs, createDirectory(_))
+        .WillOnce(Invoke([&](const Path&) -> Result<void> {
+            EXPECT_EQ(
+                backups.getRunStatus("daily")->state, BackupRunState::starting
+            );
+            return {};
+        }));
+    EXPECT_CALL(fs, glob("/source/file.txt"))
+        .WillOnce(Return(std::vector<Path>{"/source/file.txt"}));
+    EXPECT_CALL(fs, isDirectory(_)).WillOnce(Return(false));
+    SnapshotMetadata metadata{"snapshot", Location::local("/snapshot")};
+    EXPECT_CALL(*snapshotter, snapshot(_)).WillOnce(Return(metadata));
+    EXPECT_CALL(*store, put(_, _)).WillOnce(Return(metadata));
+    EXPECT_CALL(fs, removeAll(_)).WillOnce(Return(Result<void>{}));
+
+    auto result = service->triggerBackup("daily");
+    service.reset();
+
+    ASSERT_TRUE(result);
+    const auto status = backups.getRunStatus("daily");
+    ASSERT_TRUE(status);
+    EXPECT_EQ(status->state, BackupRunState::completed);
+    EXPECT_EQ(status->uuid, *result);
+    EXPECT_TRUE(backups.get("daily"));
+}
+
+TEST(BackupOrchestrator, IdleScanClearsOnlyCompletedRuns) {
+    StrictMock<MockBackupRepo> backups;
+    StrictMock<MockExecutor> executor;
+    std::promise<void> cleared;
+    auto completed = cleared.get_future();
+    EXPECT_CALL(backups, forEach(_))
+        .WillOnce(Invoke([](auto callback) {
+            for (auto state :
+                 {BackupRunState::queued, BackupRunState::starting,
+                  BackupRunState::snapshotting, BackupRunState::uploading,
+                  BackupRunState::failed, BackupRunState::completed}) {
+                Backup backup{plan()};
+                backup.plan.name = backupRunStateToString(state);
+                backup.run = BackupRunStatus{.state = state};
+                callback(backup);
+            }
+        }))
+        .WillRepeatedly(Return());
+    EXPECT_CALL(backups, clearRunStatus("completed")).WillOnce(Invoke([&] {
+        cleared.set_value();
+    }));
+
+    BackupOrchestrator orchestrator{backups, executor};
+    orchestrator.start();
+    auto status = completed.wait_for(std::chrono::seconds{1});
+    orchestrator.stop();
+    orchestrator.join();
+    EXPECT_EQ(status, std::future_status::ready);
 }
 
 TEST(Ports, AccessorsPreserveInjectedObjects) {

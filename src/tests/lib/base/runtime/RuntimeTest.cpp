@@ -83,6 +83,41 @@ TEST(ThreadSafeQueue, ConcurrentProducersDeliverEachValueOnce) {
     }
 }
 
+TEST(ThreadSafeQueue, TimedPopDistinguishesTimeoutFromClosedAndDrainsValues) {
+    ThreadSafeQueue<std::unique_ptr<int>> queue;
+    auto timeout = queue.popFor(1ms);
+    ASSERT_FALSE(timeout);
+    EXPECT_EQ(timeout.error().code(), ErrorCode::timeout);
+
+    EXPECT_TRUE(queue.push(std::make_unique<int>(42)));
+    queue.close();
+    auto value = queue.popFor(0ms);
+    ASSERT_TRUE(value);
+    EXPECT_EQ(**value, 42);
+    auto closed = queue.popFor(0ms);
+    ASSERT_FALSE(closed);
+    EXPECT_EQ(closed.error().code(), ErrorCode::queueClosed);
+}
+
+TEST(ThreadSafeQueue, TimedPopWakesOnPushAndClose) {
+    ThreadSafeQueue<int> queue;
+    auto value =
+        std::async(std::launch::async, [&] { return queue.popFor(1s); });
+    EXPECT_TRUE(queue.push(42));
+    EXPECT_EQ(value.wait_for(1s), std::future_status::ready);
+    auto result = value.get();
+    ASSERT_TRUE(result);
+    EXPECT_EQ(*result, 42);
+
+    auto closed =
+        std::async(std::launch::async, [&] { return queue.popFor(1s); });
+    queue.close();
+    EXPECT_EQ(closed.wait_for(1s), std::future_status::ready);
+    auto error = closed.get();
+    ASSERT_FALSE(error);
+    EXPECT_EQ(error.error().code(), ErrorCode::queueClosed);
+}
+
 TEST(RequestQueue, SendsReceivesAndRejectsRequestsAfterClosing) {
     RequestQueue queue;
     RequestSender sender{queue};

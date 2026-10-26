@@ -64,6 +64,7 @@ class BackupRunTest : public Test {
 
 TEST_F(BackupRunTest, SuccessTransitionsInOrderAndCleansWorkspace) {
     InSequence sequence;
+    expectState(BackupRunState::starting);
     expectWorkspace();
     expectState(BackupRunState::snapshotting);
     expectSourceTree();
@@ -112,6 +113,7 @@ TEST_F(BackupRunTest, SuccessTransitionsInOrderAndCleansWorkspace) {
 
 TEST_F(BackupRunTest, WorkspaceFailureDoesNotSnapshotOrRemoveWorkspace) {
     InSequence sequence;
+    expectState(BackupRunState::starting);
     EXPECT_CALL(fs, createDirectory(_))
         .WillOnce(Return(
             Error::unexpected(ErrorCode::fileSystemError, "mkdir failed")
@@ -131,6 +133,7 @@ TEST_F(BackupRunTest, WorkspaceFailureDoesNotSnapshotOrRemoveWorkspace) {
 
 TEST_F(BackupRunTest, SnapshotFailureIsStoredAndWorkspaceIsCleaned) {
     InSequence sequence;
+    expectState(BackupRunState::starting);
     expectWorkspace();
     expectState(BackupRunState::snapshotting);
     expectSourceTree();
@@ -155,6 +158,7 @@ TEST_F(BackupRunTest, SnapshotFailureIsStoredAndWorkspaceIsCleaned) {
 
 TEST_F(BackupRunTest, StoreFailureIsStoredAndWorkspaceIsCleaned) {
     InSequence sequence;
+    expectState(BackupRunState::starting);
     expectWorkspace();
     expectState(BackupRunState::snapshotting);
     expectSourceTree();
@@ -179,6 +183,7 @@ TEST_F(BackupRunTest, StoreFailureIsStoredAndWorkspaceIsCleaned) {
 
 TEST_F(BackupRunTest, CleanupFailureDoesNotReplaceSuccessfulBackupState) {
     InSequence sequence;
+    expectState(BackupRunState::starting);
     expectWorkspace();
     expectState(BackupRunState::snapshotting);
     expectSourceTree();

@@ -62,7 +62,7 @@ TEST(BackupServiceRunner, DispatchesQueuedRequestsAndResolvesResponses) {
     );
     auto status = backups.getRunStatus("daily");
     ASSERT_TRUE(status);
-    EXPECT_EQ(status->state, BackupRunState::starting);
+    EXPECT_EQ(status->state, BackupRunState::queued);
     EXPECT_FALSE(queue.tryPop());
 }
 
