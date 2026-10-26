@@ -23,6 +23,7 @@ class AnchorConan(ConanFile):
         self.requires("yaml-cpp/0.8.0")
         self.requires("libarchive/3.8.7")
         self.requires("p-ranav-glob/0.0.1")
+        self.requires("croncpp/2023.03.30")
 
     def build_requirements(self):
         self.test_requires("gtest/1.15.0")

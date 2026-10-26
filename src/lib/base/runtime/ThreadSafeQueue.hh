@@ -7,6 +7,7 @@
 
 #include "base/Concepts.hh"
 #include "base/Core.hh"
+#include "base/Error.hh"
 
 namespace anchor {
 
@@ -24,6 +25,29 @@ class ThreadSafeQueue : public NonCopyable, public NonMovable {
         m_queue.push(std::move(value));
         m_condition.notify_one();
         return true;
+    }
+
+    [[nodiscard]] Result<T> popFor(std::chrono::milliseconds timeout) {
+        std::unique_lock lk{m_mutex};
+        m_condition.wait_for(lk, timeout, [this] {
+            return m_closed || not m_queue.empty();
+        });
+
+        if (m_queue.empty()) {
+            if (m_closed) {
+                return Error::unexpected(
+                    ErrorCode::queueClosed, "Queue is closed"
+                );
+            } else {
+                return Error::unexpected(
+                    ErrorCode::timeout, "Timeout occurred"
+                );
+            }
+        }
+
+        T value = std::move(m_queue.front());
+        m_queue.pop();
+        return value;
     }
 
     [[nodiscard]] Opt<T> pop() {

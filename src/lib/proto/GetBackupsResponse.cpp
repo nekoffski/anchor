@@ -9,9 +9,23 @@ GetBackupsResponse::GetBackupsResponse(std::span<const Backup> backups)
 GetBackupsResponse::GetBackupsResponse() : MessageImpl("GetBackupsResponse") {}
 
 Result<std::unique_ptr<GetBackupsResponse>> GetBackupsResponse::create(
-    const Json&
+    const Json& json
 ) {
-    return std::make_unique<GetBackupsResponse>();
+    std::vector<Backup> backups;
+
+    for (const auto& backupJson : json) {
+        Backup backup;
+
+        backup.plan.name = backupJson["plan"]["name"].get<std::string>();
+        backup.enabled = backupJson["enabled"].get<bool>();
+
+        if (auto run = json.find("run"); run != json.end()) {
+            backup.run =
+                BackupRunStatus{.uuid = (*run)["uuid"].get<std::string>()};
+        }
+        backups.push_back(backup);
+    }
+    return std::make_unique<GetBackupsResponse>(backups);
 }
 
 Json GetBackupsResponse::serializeBody() const {

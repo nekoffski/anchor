@@ -8,8 +8,20 @@ namespace anchor {
 BackupService::BackupService(
     const Config& cfg, const FileSystem& fs, Ports ports
 )
-    : m_cfg(cfg), m_fs(fs), m_ports(ports) {
+    : m_cfg(cfg),
+      m_fs(fs),
+      m_ports(ports),
+      m_orchestrator(m_ports.backupRepo(), m_ports.executor()),
+      m_scheduler(*this, m_orchestrator) {
     readPlans();
+
+    m_orchestrator.start();
+    m_scheduler.start();
+}
+
+BackupService::~BackupService() {
+    m_orchestrator.stop();
+    m_scheduler.stop();
 }
 
 Result<Uuid> BackupService::triggerBackup(const Str& name) {
@@ -30,22 +42,7 @@ Result<Uuid> BackupService::triggerBackup(const Str& name) {
         return Error::unexpected(args.error());
     }
 
-    auto run = std::make_unique<BackupRun>(*args);
-    const auto uuid = run->uuid();
-
-    BackupRunStatus initialStatus{
-        .state = BackupRunState::starting, .uuid = uuid
-    };
-    m_ports.backupRepo().updateRunStatus(name, initialStatus);
-
-    m_ports.executor().call([run = std::move(run)]() { run->start(); });
-
-    return uuid;
-}
-
-void BackupService::tick() {
-    scanBackupRuns();
-    // --
+    return m_orchestrator.enqueueBackup(std::move(*args));
 }
 
 std::vector<Backup> BackupService::getBackups() {
@@ -103,26 +100,12 @@ void BackupService::readPlans() {
                 log::info("\t\tInclude: '{}'", include);
             }
         }
+
         auto backup =
             m_ports.backupRepo().get(plan.name).value_or(Backup{plan});
         backup.plan = plan;
         m_ports.backupRepo().put(backup);
     });
-}
-
-void BackupService::scanBackupRuns() {
-    auto& backupRepo = m_ports.backupRepo();
-    std::vector<Str> completedBackups;
-
-    backupRepo.forEach([&](const Backup& backup) {
-        if (backup.run and backup.run->state == BackupRunState::completed) {
-            log::debug("Backup '{}' has completed.", backup.plan.name);
-            completedBackups.push_back(backup.plan.name);
-        }
-    });
-    for (const auto& name : completedBackups) {
-        backupRepo.clearRunStatus(name);
-    }
 }
 
 }  // namespace anchor

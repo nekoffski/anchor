@@ -20,6 +20,8 @@ Str newSnapshotName(const Str& backupName) {
 }
 
 void BackupRun::start() {
+    update(BackupRunState::starting);
+
     if (not m_fs.createDirectory(m_workspace)) {
         fail(
             ErrorCode::fileSystemError, "Failed to create workspace directory"

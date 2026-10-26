@@ -4,6 +4,8 @@ namespace anchor {
 
 Str backupRunStateToString(BackupRunState state) {
     switch (state) {
+        case BackupRunState::queued:
+            return "queued";
         case BackupRunState::starting:
             return "starting";
         case BackupRunState::snapshotting:

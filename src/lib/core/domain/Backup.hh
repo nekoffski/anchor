@@ -23,6 +23,7 @@ struct BackupPlan {
 };
 
 enum class BackupRunState {
+    queued,
     starting,
     snapshotting,
     uploading,

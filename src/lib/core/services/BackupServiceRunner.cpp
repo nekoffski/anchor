@@ -18,7 +18,6 @@ void BackupServiceRunner::run() {
                 break;
             }
         }
-        m_service.tick();
         sleepFor(100ms);
     }
 }

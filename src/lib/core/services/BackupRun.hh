@@ -17,6 +17,14 @@ struct BackupRunArgs {
     const Path& workspace;
 };
 
+class BackupPreflighter : public virtual NonCopyable,
+                          public virtual NonMovable {
+   public:
+    virtual ~BackupPreflighter() = default;
+
+    virtual Result<BackupRunArgs> preflightBackup(const Backup& backup) = 0;
+};
+
 class BackupRun : public WithUuid {
    public:
     explicit BackupRun(const BackupRunArgs& args);

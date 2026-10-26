@@ -6,7 +6,10 @@ namespace anchor {
 
 enum class ErrorCode {
     noError,
+    internalError,
     queueError,
+    queueClosed,
+    timeout,
     invalidConfig,
     fileSystemError,
     invalidArgument,
