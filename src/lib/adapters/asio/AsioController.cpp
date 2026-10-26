@@ -6,6 +6,7 @@
 #include "proto/ErrorResponse.hh"
 #include "proto/GetBackupsRequest.hh"
 #include "proto/GetBackupsResponse.hh"
+#include "proto/ReloadPlansRequest.hh"
 #include "proto/TriggerBackupRequest.hh"
 
 namespace anchor {
@@ -19,6 +20,8 @@ Result<Request> translateRequest(const proto::Message& message) {
         return TriggerBackupRequest{req->backupName()};
     } else if (const auto* _ = message.as<proto::GetBackupsRequest>()) {
         return GetBackupsRequest{};
+    } else if (const auto* _ = message.as<proto::ReloadPlansRequest>()) {
+        return ReloadPlansRequest{};
     }
     return Error::unexpected(
         ErrorCode::unknownRequest, "Unknown request type: {}", message.name()

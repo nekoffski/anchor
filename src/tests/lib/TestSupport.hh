@@ -105,7 +105,7 @@ class MockSnapshotStore : public SnapshotStore {
 class MockPlanRepo : public BackupPlanRepo {
    public:
     MOCK_METHOD(Result<std::vector<Path>>, list, (), (const, override));
-    MOCK_METHOD(void, forEach, (Callback), (const, override));
+    MOCK_METHOD(Result<void>, forEach, (Callback), (const, override));
 };
 
 class MockBackupRepo : public BackupRepo {
@@ -113,6 +113,7 @@ class MockBackupRepo : public BackupRepo {
     MOCK_METHOD(Opt<Backup>, get, (const Str&), (const, override));
     MOCK_METHOD(std::vector<Backup>, getAll, (), (const, override));
     MOCK_METHOD(void, put, (const Backup&), (override));
+    MOCK_METHOD(void, putPlan, (const BackupPlan&), (override));
     MOCK_METHOD(void, forEach, (Callback), (const, override));
     MOCK_METHOD(
         Opt<BackupRunStatus>, getRunStatus, (const Str&), (const, override)

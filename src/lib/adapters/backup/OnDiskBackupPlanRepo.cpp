@@ -132,13 +132,14 @@ Result<std::vector<Path>> OnDiskBackupPlanRepo::list() const {
     return *files | std::views::filter(isYaml) | std::ranges::to<std::vector>();
 }
 
-void OnDiskBackupPlanRepo::forEach(Callback callback) const {
+Result<void> OnDiskBackupPlanRepo::forEach(Callback callback) const {
     const auto& paths = list();
     if (not paths) {
         log::error("Could not list backup plans: {}", paths.error());
-        return;
+        return Error::unexpected(paths.error());
     }
 
+    Opt<Error> failure;
     for (const auto& path : *paths) {
         log::debug("Parsing backup plan: {}", path.str());
 
@@ -149,8 +150,18 @@ void OnDiskBackupPlanRepo::forEach(Callback callback) const {
                 "Could not load backup plan: {} due to {}", path.str(),
                 plan.error()
             );
+            if (not failure) {
+                failure = Error{
+                    plan.error().code(), "Could not load plan '{}': {}",
+                    path.str(), plan.error().message()
+                };
+            }
         }
     }
+    if (failure) {
+        return Error::unexpected(*failure);
+    }
+    return {};
 }
 
 }  // namespace anchor

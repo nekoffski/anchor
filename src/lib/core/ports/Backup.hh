@@ -15,7 +15,8 @@ class BackupPlanRepo : public NonCopyable, public NonMovable {
     virtual ~BackupPlanRepo() = default;
 
     virtual Result<std::vector<Path>> list() const = 0;
-    virtual void forEach(Callback c) const = 0;
+    // Visits valid plans, returning an error if any plan could not be loaded.
+    virtual Result<void> forEach(Callback c) const = 0;
 };
 
 class BackupRepo : public NonCopyable, public NonMovable {
@@ -29,6 +30,7 @@ class BackupRepo : public NonCopyable, public NonMovable {
     virtual std::vector<Backup> getAll() const = 0;
 
     virtual void put(const Backup& backup) = 0;
+    virtual void putPlan(const BackupPlan& plan) = 0;
     virtual void forEach(Callback c) const = 0;
 
     virtual Opt<BackupRunStatus> getRunStatus(const Str& backupName) const = 0;

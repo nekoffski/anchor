@@ -2,6 +2,7 @@
 
 #include <CLI/CLI.hpp>
 
+#include "CommandContext.hh"
 #include "base/Concepts.hh"
 #include "base/Core.hh"
 #include "base/Error.hh"
@@ -10,13 +11,12 @@ namespace anchor::cli {
 
 class DiagnosticsCommand : public NonCopyable, public NonMovable {
    public:
-    explicit DiagnosticsCommand(CLI::App& app);
-
-    bool selected() const { return m_command.parsed(); }
-    Result<void> run(u16 port) const;
+    DiagnosticsCommand(CLI::App& app, CommandContext& context);
 
    private:
-    CLI::App& m_command;
+    Result<void> run();
+
+    CommandContext& m_context;
     Str m_details{"anchor diagnostics"};
 };
 

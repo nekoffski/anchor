@@ -5,8 +5,13 @@ namespace anchor::proto {
 GetBackupsRequest::GetBackupsRequest() : MessageImpl("GetBackupsRequest") {}
 
 Result<std::unique_ptr<GetBackupsRequest>> GetBackupsRequest::create(
-    const Json&
+    const Json& body
 ) {
+    if (not body.is_null()) {
+        return Error::unexpected(
+            ErrorCode::invalidArgument, "Invalid get backups request body"
+        );
+    }
     return std::make_unique<GetBackupsRequest>();
 }
 

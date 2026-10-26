@@ -1,6 +1,7 @@
 find_package(GTest CONFIG REQUIRED)
 
 add_executable(anchor-tests
+    "cli/ApplicationTest.cpp"
     "lib/adapters/asio/AsioControllerTest.cpp"
     "lib/adapters/backup/InMemoryBackupRepoTest.cpp"
     "lib/adapters/backup/OnDiskBackupPlanRepoTest.cpp"
@@ -37,6 +38,6 @@ add_executable(anchor-tests
 )
 target_include_directories(anchor-tests PRIVATE lib)
 target_compile_definitions(anchor-tests PRIVATE ANCHOR_TEST_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-target_link_libraries(anchor-tests PRIVATE anchor GTest::gmock_main)
+target_link_libraries(anchor-tests PRIVATE anchor-cli-commands GTest::gmock_main)
 include(GoogleTest)
 gtest_discover_tests(anchor-tests PROPERTIES LABELS unit TIMEOUT 10)

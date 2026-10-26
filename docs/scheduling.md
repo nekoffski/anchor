@@ -18,7 +18,7 @@ The backup repository holds each backup's current plan, enabled flag, and latest
 
 ## Plans and cron expressions
 
-Plans are loaded from YAML files when the service is constructed. The filename supplies the backup name. An optional `settings.cron` enables automatic execution:
+Plans are loaded from YAML files when the service is constructed and when it handles a reload request. The filename supplies the backup name. An optional `settings.cron` enables automatic execution:
 
 ```yaml
 settings:
@@ -32,7 +32,11 @@ sources:
 
 Cron expressions have six fields: second, minute, hour, day of month, month, and day of week. They use the daemon machine's local timezone. The example requests a backup every five minutes at second zero. Without `cron`, a plan runs only on manual requests. A malformed cron expression rejects that plan; the loader logs the error and continues loading other plans.
 
-Plans are loaded at startup; editing a YAML file requires restarting the daemon. Repository contents and execution status are held in memory and do not survive a daemon restart. The enabled flag controls automatic scheduling; manual triggers ignore it.
+`anchor backup reload` sends a `ReloadPlansRequest` through the same service queue as list and trigger requests. The handler adds or updates valid plans and refreshes each loaded plan's scheduler deadline before acknowledging the request. Plan updates preserve enabled state and latest run status under the repository lock, including status changes from executing runs. Queued and executing runs retain their accepted plan copies.
+
+Reload does not remove backups whose files were deleted. An invalid plan leaves its previous definition and schedule intact. Valid plans still load when other plans fail; the request returns the first loading error, while the daemon logs every failure. A directory listing failure returns an error without updating any plans. A successful reload with no files leaves the repository unchanged. Restarting the daemon reloads only the definitions currently on disk.
+
+Repository contents and execution status are held in memory and do not survive a daemon restart. The enabled flag controls automatic scheduling; manual triggers ignore it.
 
 ## Scheduling
 

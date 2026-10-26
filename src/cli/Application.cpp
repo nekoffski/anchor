@@ -1,47 +1,37 @@
 #include "Application.hh"
 
-#include <cstdio>
 #include <sstream>
 
 namespace anchor::cli {
 
-Application::Application() {
-    m_app.require_subcommand(1);
+Application::Application(
+    Client& client, std::ostream& output, std::ostream& errors
+)
+    : m_output(output), m_errors(errors), m_context(client, m_port, output) {
+    m_app.require_subcommand(1, 1);
     m_app.add_option("--port", m_port, "Local daemon port")
         ->check(CLI::Range(1, 65535))
         ->capture_default_str();
 }
 
-int Application::run(int argc, const char** argv) {
+int Application::run(int argc, const char* const* argv) {
+    m_context.reset();
     try {
         m_app.parse(argc, argv);
     } catch (const CLI::ParseError& error) {
         std::ostringstream output;
         std::ostringstream errors;
         const auto code = m_app.exit(error, output, errors);
-        fmt::print("{}", output.str());
-        fmt::print(stderr, "{}", errors.str());
+        m_output << output.str();
+        m_errors << errors.str();
         return code;
     }
 
-    if (auto result = runCommand(); not result) {
-        fmt::print(stderr, "anchor: {}\n", result.error().message());
+    if (auto result = m_context.run(); not result) {
+        m_errors << "anchor: " << result.error().message() << '\n';
         return 1;
     }
     return 0;
-}
-
-Result<void> Application::runCommand() {
-    if (m_diagnostics.selected()) {
-        return m_diagnostics.run(m_port);
-    }
-    if (m_sync.selected()) {
-        return m_sync.run();
-    }
-    if (m_backup.selected()) {
-        return m_backup.run(m_port);
-    }
-    return Error::unexpected(ErrorCode::invalidArgument, "Missing command");
 }
 
 }  // namespace anchor::cli

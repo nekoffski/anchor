@@ -28,9 +28,11 @@ class BackupServiceTest : public Test {
     void TearDown() override { service.reset(); }
     void loadService() {
         service.reset();
-        EXPECT_CALL(plans, forEach(_)).WillOnce(Invoke([&](auto callback) {
-            callback(backup);
-        }));
+        EXPECT_CALL(plans, forEach(_))
+            .WillOnce(Invoke([&](auto callback) -> Result<void> {
+                callback(backup);
+                return {};
+            }));
         service = std::make_unique<BackupService>(
             config, fs, Ports{backups, plans, snapshotters, stores, executor}
         );
@@ -312,12 +314,23 @@ TEST_F(BackupServiceTest, AcceptedRunKeepsItsPlanSnapshot) {
     auto response =
         send(TriggerBackupRequest{.name = "daily", .scheduled = true});
     auto workStatus = work.wait_for(1s);
-    service.reset();
     ASSERT_TRUE(std::holds_alternative<AckResponse>(response));
     ASSERT_EQ(workStatus, std::future_status::ready);
-    current = backups.get("daily").value();
-    current.plan.destination = Location::local("/changed-after-acceptance");
-    backups.put(current);
+    backup.destination = Location::local("/changed-after-acceptance");
+    EXPECT_CALL(plans, forEach(_))
+        .WillOnce(Invoke([&](auto callback) -> Result<void> {
+            callback(backup);
+            return {};
+        }));
+    EXPECT_TRUE(
+        std::holds_alternative<AckResponse>(send(ReloadPlansRequest{}))
+    );
+    EXPECT_EQ(
+        backups.get("daily")->plan.destination.str(),
+        "local:///changed-after-acceptance"
+    );
+    EXPECT_EQ(backups.getRunStatus("daily")->state, BackupRunState::queued);
+    service.reset();
     EXPECT_CALL(fs, createDirectory(_)).WillOnce(Return(Result<void>{}));
     EXPECT_CALL(fs, glob("/source/file.txt"))
         .WillOnce(Return(std::vector<Path>{"/source/file.txt"}));
@@ -359,6 +372,109 @@ TEST_F(BackupServiceTest, RealSchedulerSubmitsIntoOwnedQueue) {
     auto status = ready.wait_for(3s);
     service.reset();
     ASSERT_EQ(status, std::future_status::ready);
+    ASSERT_TRUE(backups.getRunStatus("daily"));
+    EXPECT_EQ(backups.getRunStatus("daily")->state, BackupRunState::failed);
+}
+
+TEST_F(
+    BackupServiceTest, ReloadAddsAndUpdatesPlansAndKeepsMissingPlansAndRunState
+) {
+    auto retained = backup;
+    retained.name = "deleted-on-disk";
+    backups.putPlan(retained);
+    backups.put(
+        Backup{
+            .plan = backup,
+            .enabled = false,
+            .run = BackupRunStatus{
+                .state = BackupRunState::uploading, .uuid = "active-id"
+            }
+        }
+    );
+    auto added = backup;
+    added.name = "new";
+    backup.destination = Location::local("/new-location");
+    EXPECT_CALL(plans, forEach(_))
+        .WillOnce(Invoke([&](auto callback) -> Result<void> {
+            callback(backup);
+            callback(added);
+            return {};
+        }));
+    EXPECT_TRUE(
+        std::holds_alternative<AckResponse>(send(ReloadPlansRequest{}))
+    );
+    const auto current = backups.get("daily");
+    ASSERT_TRUE(current);
+    EXPECT_EQ(current->plan.destination.str(), "local:///new-location");
+    EXPECT_FALSE(current->enabled);
+    ASSERT_TRUE(current->run);
+    EXPECT_EQ(current->run->state, BackupRunState::uploading);
+    EXPECT_EQ(current->run->uuid, "active-id");
+    EXPECT_TRUE(backups.get("new"));
+    EXPECT_TRUE(backups.get("deleted-on-disk"));
+}
+
+TEST_F(
+    BackupServiceTest,
+    ReloadReportsErrorsAfterApplyingValidPlansAndPreservesOtherPlans
+) {
+    auto valid = backup;
+    valid.name = "valid";
+    EXPECT_CALL(plans, forEach(_))
+        .WillOnce(Invoke([&](auto callback) -> Result<void> {
+            callback(valid);
+            return Error::unexpected(
+                ErrorCode::invalidConfig,
+                "Could not load plan 'daily.yaml': invalid cron"
+            );
+        }));
+    expectError(
+        send(ReloadPlansRequest{}), ErrorCode::invalidConfig,
+        "Could not load plan 'daily.yaml': invalid cron"
+    );
+    EXPECT_TRUE(backups.get("valid"));
+    ASSERT_TRUE(backups.get("daily"));
+    EXPECT_EQ(
+        backups.get("daily")->plan.destination.str(), backup.destination.str()
+    );
+    EXPECT_CALL(plans, forEach(_))
+        .WillOnce(Return(
+            Error::unexpected(ErrorCode::fileSystemError, "listing failed")
+        ));
+    expectError(
+        send(ReloadPlansRequest{}), ErrorCode::fileSystemError, "listing failed"
+    );
+    EXPECT_EQ(backups.getAll().size(), 2);
+}
+
+TEST_F(BackupServiceTest, ReloadWakesSchedulerWhenAddingFirstCron) {
+    addSnapshotter();
+    addStore();
+    std::promise<void> attempted;
+    auto ready = attempted.get_future();
+    EXPECT_CALL(executor, call(_)).WillRepeatedly(Invoke([](auto callback) {
+        callback();
+    }));
+    auto failure =
+        Error::unexpected(ErrorCode::fileSystemError, "mkdir failed");
+    EXPECT_CALL(fs, createDirectory(_))
+        .WillOnce(Invoke([&](const Path&) -> Result<void> {
+            attempted.set_value();
+            return failure;
+        }))
+        .WillRepeatedly(Return(failure));
+    backup.cron = *Cron::fromString("* * * * * *");
+    EXPECT_CALL(plans, forEach(_))
+        .WillOnce(Invoke([&](auto callback) -> Result<void> {
+            callback(backup);
+            return {};
+        }));
+    EXPECT_TRUE(
+        std::holds_alternative<AckResponse>(send(ReloadPlansRequest{}))
+    );
+    const auto status = ready.wait_for(3s);
+    service.reset();
+    EXPECT_EQ(status, std::future_status::ready);
     ASSERT_TRUE(backups.getRunStatus("daily"));
     EXPECT_EQ(backups.getRunStatus("daily")->state, BackupRunState::failed);
 }

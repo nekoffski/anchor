@@ -21,6 +21,11 @@ void InMemoryBackupRepo::put(const Backup& backup) {
     m_backups[backup.plan.name] = backup;
 }
 
+void InMemoryBackupRepo::putPlan(const BackupPlan& plan) {
+    std::unique_lock lk{m_mutex};
+    m_backups[plan.name].plan = plan;
+}
+
 void InMemoryBackupRepo::forEach(Callback c) const {
     std::shared_lock lk{m_mutex};
     for (const auto& [name, backup] : m_backups) {

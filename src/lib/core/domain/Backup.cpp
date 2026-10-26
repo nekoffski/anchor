@@ -1,10 +1,28 @@
 #include "Backup.hh"
 
+#include <array>
+
 namespace anchor {
 
 bool isActive(BackupRunState state) {
     return state != BackupRunState::completed &&
            state != BackupRunState::failed;
+}
+
+Result<BackupRunState> backupRunStateFromString(const Str& state) {
+    static constexpr std::array states{
+        BackupRunState::queued,       BackupRunState::starting,
+        BackupRunState::snapshotting, BackupRunState::uploading,
+        BackupRunState::completed,    BackupRunState::failed
+    };
+    for (const auto value : states) {
+        if (backupRunStateToString(value) == state) {
+            return value;
+        }
+    }
+    return Error::unexpected(
+        ErrorCode::invalidArgument, "Invalid backup run state: {}", state
+    );
 }
 
 Str backupRunStateToString(BackupRunState state) {

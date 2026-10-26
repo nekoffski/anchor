@@ -65,7 +65,10 @@ TEST_F(ConfigTest, PlanRepoParsesPlansAndSkipsReportedErrors) {
     ScopedEnv env{"ANCHOR_TEST_PATH", "1337"};
     OnDiskBackupPlanRepo repo{root, fs};
     std::vector<BackupPlan> plans;
-    repo.forEach([&](const BackupPlan& plan) { plans.push_back(plan); });
+    auto result =
+        repo.forEach([&](const BackupPlan& plan) { plans.push_back(plan); });
+    ASSERT_FALSE(result);
+    EXPECT_THAT(result.error().message(), HasSubstr("Could not load plan"));
     ASSERT_EQ(plans.size(), 1);
     const auto& plan = plans.front();
     EXPECT_EQ(plan.name, "daily");
@@ -169,9 +172,11 @@ TEST_F(ConfigTest, PlanRepoPropagatesListingErrorsAndSkipsIteration) {
     auto result = repo.list();
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().message(), "listing failed");
-    repo.forEach([](const BackupPlan&) {
+    auto iteration = repo.forEach([](const BackupPlan&) {
         FAIL() << "no plans on listing failure";
     });
+    ASSERT_FALSE(iteration);
+    EXPECT_EQ(iteration.error().message(), "listing failed");
 }
 
 }  // namespace anchor::test

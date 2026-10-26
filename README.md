@@ -38,6 +38,28 @@ make test         # build Debug and run the unit tests
 
 Backup execution and scheduling are described in [docs/scheduling.md](docs/scheduling.md).
 
+## CLI
+
+With the daemon running:
+
+```sh
+anchor backup list
+anchor backup trigger personal
+anchor backup reload
+```
+
+`list` shows each backup's enabled flag, latest run state, run ID, and failure
+details when present. A successful `trigger` acknowledges acceptance; use `list`
+to check execution. `reload` adds or updates valid plans from the configured
+directory, preserving enabled state and run status. Deleted or invalid plans
+keep their previously loaded definitions. If any plan fails to load, valid
+plans still update and the command reports an error.
+
+Use `--port PORT` at any command level to select the local daemon port, and
+`--help` for command options. The existing `backup trigger --name personal`
+spelling is also supported. The CLI's command structure is described in
+[docs/cli.md](docs/cli.md).
+
 ## Example backup manifest
 
 Save this as `personal.yaml` in the directory configured by the daemon's
@@ -69,4 +91,5 @@ directory before running a backup.
 
 Omit `cron` for a manual-only plan. Scheduled occurrences are skipped while the
 backup is queued or running, and missed times are not replayed after downtime
-or sleep. Plans are loaded at startup; restart the daemon after editing one.
+or sleep. Plans are loaded at startup; run `anchor backup reload` after editing
+or adding a plan.

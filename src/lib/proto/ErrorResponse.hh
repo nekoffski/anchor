@@ -4,6 +4,8 @@
 
 namespace anchor::proto {
 
+Json serializeError(const Error& error);
+
 class ErrorResponse : public MessageImpl<ErrorResponse> {
    public:
     explicit ErrorResponse(ErrorCode code, const Str& message);

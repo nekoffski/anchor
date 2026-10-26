@@ -2,7 +2,10 @@
 #include "proto/AckResponse.hh"
 #include "proto/DiagnosticRequest.hh"
 #include "proto/ErrorResponse.hh"
+#include "proto/GetBackupsRequest.hh"
+#include "proto/GetBackupsResponse.hh"
 #include "proto/Message.hh"
+#include "proto/ReloadPlansRequest.hh"
 #include "proto/TriggerBackupRequest.hh"
 
 namespace anchor::test {
@@ -206,6 +209,123 @@ TEST(TriggerBackupRequest, ValidatesNonemptyStringName) {
         ASSERT_FALSE(result);
         EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
     }
+}
+
+TEST(Message, BodylessBackupRequestsRoundTripAndRejectUnexpectedBodies) {
+    for (const auto* name : {"GetBackupsRequest", "ReloadPlansRequest"}) {
+        const auto envelope = Json{{"name", name}, {"body", nullptr}};
+        auto restored = proto::Message::create(envelope);
+        ASSERT_TRUE(restored);
+        EXPECT_EQ((*restored)->serialize(), envelope);
+        for (const auto& body :
+             {Json::object(), Json::array(), Json(42), Json("text")}) {
+            EXPECT_FALSE(
+                proto::Message::create(Json{{"name", name}, {"body", body}})
+            );
+        }
+    }
+    EXPECT_TRUE(proto::ReloadPlansRequest::create(nullptr));
+    EXPECT_TRUE(proto::GetBackupsRequest::create(nullptr));
+}
+
+TEST(GetBackupsResponse, EmptyBackupsSerializeAsArrayAndRoundTrip) {
+    proto::GetBackupsResponse response;
+    const auto envelope = response.serialize();
+    EXPECT_EQ(envelope["body"], Json::array());
+    auto restored = proto::Message::create(envelope);
+    ASSERT_TRUE(restored);
+    const auto* typed = (*restored)->as<proto::GetBackupsResponse>();
+    ASSERT_NE(typed, nullptr);
+    EXPECT_TRUE(typed->backups().empty());
+}
+
+TEST(GetBackupsResponse, RoundTripRetainsEachBackupsOwnRunStateAndError) {
+    std::vector<Backup> backups{Backup{.plan = plan(), .enabled = false}};
+    for (const auto state :
+         {BackupRunState::queued, BackupRunState::starting,
+          BackupRunState::snapshotting, BackupRunState::uploading,
+          BackupRunState::completed, BackupRunState::failed}) {
+        auto backup = Backup{
+            .plan = plan(),
+            .run = BackupRunStatus{
+                .state = state, .uuid = "run-" + backupRunStateToString(state)
+            }
+        };
+        backup.plan.name = backupRunStateToString(state);
+        if (state == BackupRunState::failed) {
+            backup.run->error = Error{ErrorCode::fileSystemError, "disk full"};
+        }
+        backups.push_back(backup);
+    }
+    const auto serialized = proto::GetBackupsResponse{backups}.serialize();
+    auto restored = proto::Message::create(serialized);
+    ASSERT_TRUE(restored);
+    auto* typed = (*restored)->as<proto::GetBackupsResponse>();
+    ASSERT_NE(typed, nullptr);
+    ASSERT_EQ(typed->backups().size(), backups.size());
+    EXPECT_FALSE(typed->backups()[0].enabled);
+    EXPECT_FALSE(typed->backups()[0].run);
+    for (size_t i = 1; i < backups.size(); ++i) {
+        ASSERT_TRUE(typed->backups()[i].run);
+        EXPECT_EQ(typed->backups()[i].plan.name, backups[i].plan.name);
+        EXPECT_EQ(typed->backups()[i].run->state, backups[i].run->state);
+        EXPECT_EQ(typed->backups()[i].run->uuid, backups[i].run->uuid);
+    }
+    ASSERT_TRUE(typed->backups().back().run->error);
+    EXPECT_EQ(
+        typed->backups().back().run->error->code(), ErrorCode::fileSystemError
+    );
+    EXPECT_EQ(typed->backups().back().run->error->message(), "disk full");
+    EXPECT_EQ((*restored)->serialize(), serialized);
+}
+
+TEST(
+    GetBackupsResponse,
+    MalformedBackupsAndRunStatusesReturnErrorsWithoutThrowing
+) {
+    const auto valid =
+        Json{{"plan", Json{{"name", "daily"}}}, {"enabled", true}};
+    std::vector<Json> malformed{
+        nullptr,
+        Json::object(),
+        "text",
+        42,
+        Json::array({nullptr}),
+        Json::array({Json::object()}),
+        Json::array({Json{{"plan", Json{{"name", "daily"}}}}}),
+        Json::array({Json{{"plan", Json{{"name", ""}}}, {"enabled", true}}}),
+        Json::array({Json{{"plan", Json{{"name", 42}}}, {"enabled", true}}}),
+        Json::array(
+            {Json{{"plan", Json{{"name", "daily"}}}, {"enabled", "yes"}}}
+        )
+    };
+    for (const auto& run :
+         {Json::object(), Json::array(), Json(42), Json{{"uuid", "id"}},
+          Json{{"state", "queued"}}, Json{{"uuid", "id"}, {"state", "unknown"}},
+          Json{{"uuid", ""}, {"state", "queued"}},
+          Json{{"uuid", 42}, {"state", "queued"}},
+          Json{{"uuid", "id"}, {"state", 42}},
+          Json{{"uuid", "id"}, {"state", "failed"}, {"error", Json::object()}},
+          Json{
+              {"uuid", "id"},
+              {"state", "failed"},
+              {"error", Json{{"code", 999}, {"message", "bad"}}}
+          }}) {
+        auto backup = valid;
+        backup["run"] = run;
+        malformed.push_back(Json::array({backup}));
+    }
+    for (const auto& body : malformed) {
+        SCOPED_TRACE(body.dump());
+        auto result = proto::Message::create(
+            Json{{"name", "GetBackupsResponse"}, {"body", body}}
+        );
+        ASSERT_FALSE(result);
+        EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+    }
+    auto withoutRun = valid;
+    withoutRun["run"] = nullptr;
+    EXPECT_TRUE(proto::GetBackupsResponse::create(Json::array({withoutRun})));
 }
 
 }  // namespace anchor::test

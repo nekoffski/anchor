@@ -18,6 +18,8 @@ struct TriggerBackupRequest {
 
 struct GetBackupsRequest {};
 
+struct ReloadPlansRequest {};
+
 struct GetBackupsResponse {
     std::vector<Backup> backups;
 };
@@ -28,8 +30,9 @@ struct ErrorResponse {
     Error error;
 };
 
-using Request =
-    std::variant<DiagnosticRequest, TriggerBackupRequest, GetBackupsRequest>;
+using Request = std::variant<
+    DiagnosticRequest, TriggerBackupRequest, GetBackupsRequest,
+    ReloadPlansRequest>;
 
 using Response = std::variant<AckResponse, ErrorResponse, GetBackupsResponse>;
 

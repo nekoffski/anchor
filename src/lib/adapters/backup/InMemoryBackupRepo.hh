@@ -14,6 +14,7 @@ class InMemoryBackupRepo : public BackupRepo {
     std::vector<Backup> getAll() const override;
 
     void put(const Backup& backup) override;
+    void putPlan(const BackupPlan& plan) override;
     void forEach(Callback c) const override;
 
     Opt<BackupRunStatus> getRunStatus(const Str& backupName) const override;

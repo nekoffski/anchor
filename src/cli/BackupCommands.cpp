@@ -1,152 +1,94 @@
 #include "BackupCommands.hh"
 
-#include "proto/AckResponse.hh"
-#include "proto/ErrorResponse.hh"
+#include <algorithm>
+
 #include "proto/GetBackupsRequest.hh"
 #include "proto/GetBackupsResponse.hh"
+#include "proto/ReloadPlansRequest.hh"
 #include "proto/TriggerBackupRequest.hh"
 
 namespace anchor::cli {
-
 namespace {
 
 Str validateName(const Str& name) {
     return name.empty() ? "Backup name must not be empty" : "";
 }
 
+void printBackups(
+    std::ostream& output, const proto::GetBackupsResponse& response
+) {
+    if (response.backups().empty()) {
+        output << "No backups found.\n";
+        return;
+    }
+    auto backups = response.backups();
+    const auto name = [](const Backup& backup) { return backup.plan.name; };
+    std::ranges::sort(backups, {}, name);
+    for (const auto& backup : backups) {
+        output << "Backup: " << backup.plan.name << '\n'
+               << "  Enabled: " << (backup.enabled ? "yes" : "no") << '\n';
+        if (not backup.run) {
+            output << "  State: idle\n";
+            continue;
+        }
+        output << "  State: " << backupRunStateToString(backup.run->state)
+               << '\n'
+               << "  Run ID: " << backup.run->uuid << '\n';
+        if (backup.run->error) {
+            output << "  Error: " << backup.run->error->message() << '\n';
+        }
+    }
+}
+
 }  // namespace
 
-BackupCommands::BackupCommands(CLI::App& app)
-    : m_command(*app.add_subcommand("backup", "Manage backups (mock)")) {
-    m_command.require_subcommand(1);
-    m_command.fallthrough();
-    initTrigger();
-    initList();
-    initActivate();
-    initStatus();
-}
+BackupCommands::BackupCommands(CLI::App& app, CommandContext& context)
+    : m_context(context) {
+    auto& group = *app.add_subcommand("backup", "Manage backups");
+    group.require_subcommand(1, 1);
+    group.fallthrough();
 
-void BackupCommands::initTrigger() {
-    auto* command =
-        m_command.add_subcommand("trigger", "Trigger a backup (mock)");
-    command->add_option("--name", m_triggerName, "Backup name")
+    auto& trigger =
+        context.addCommand(group, "trigger", "Request a backup run", [this] {
+            return this->trigger();
+        });
+    trigger.add_option("name,--name", m_triggerName, "Backup name")
         ->required()
         ->check(validateName);
-}
 
-void BackupCommands::initList() {
-    m_command.add_subcommand("list", "List backups (mock)");
-}
-
-void BackupCommands::initActivate() {
-    auto* command =
-        m_command.add_subcommand("activate", "Activate a backup (mock)");
-    command->add_option("--name", m_activateName, "Backup name")
-        ->required()
-        ->check(validateName);
-}
-
-void BackupCommands::initStatus() {
-    auto* command =
-        m_command.add_subcommand("status", "Show backup status (mock)");
-    command
-        ->add_option(
-            "--name", m_statusName, "Backup name (omit for all backups)"
-        )
-        ->check(validateName);
-}
-
-Result<void> BackupCommands::run(u16 port) {
-    if (auto res = m_client.connect(port); not res) {
-        return Error::unexpected(
-            ErrorCode::connectionFailure, "Failed to connect to daemon: {}",
-            res.error()
-        );
-    }
-
-    if (m_command.got_subcommand("trigger")) {
-        return trigger();
-    }
-    if (m_command.got_subcommand("list")) {
-        return list();
-    }
-    if (m_command.got_subcommand("activate")) {
-        return activate();
-    }
-    if (m_command.got_subcommand("status")) {
-        return status();
-    }
-    return Error::unexpected(
-        ErrorCode::invalidArgument, "Missing backup command"
+    context.addCommand(
+        group, "list", "List backups and their latest run",
+        [this] { return list(); }
+    );
+    context.addCommand(
+        group, "reload", "Reload backup plans from disk",
+        [this] { return reload(); }
     );
 }
 
 Result<void> BackupCommands::trigger() {
-    proto::TriggerBackupRequest request{m_triggerName};
-
-    if (auto res = m_client.send(request); not res) {
-        return Error::unexpected(
-            ErrorCode::connectionFailure,
-            "Failed to send trigger backup request: {}", res.error()
-        );
-    }
-
-    auto response = m_client.receive();
-
-    if (not response) {
-        return Error::unexpected(
-            ErrorCode::connectionFailure,
-            "Failed to receive trigger backup response: {}", response.error()
-        );
-    }
-
-    if (response->get()->as<proto::AckResponse>()) {
-        fmt::print("Backup triggered successfully.\n");
-    } else if (auto* res = response->get()->as<proto::ErrorResponse>()) {
-        return Error::unexpected(res->error());
-    }
-
-    return {};
+    return m_context.acknowledge(
+        proto::TriggerBackupRequest{m_triggerName},
+        fmt::format(
+            "Backup '{}' accepted. Use 'anchor backup list' to see its state.",
+            m_triggerName
+        )
+    );
 }
 
 Result<void> BackupCommands::list() {
-    proto::GetBackupsRequest request;
-
-    if (auto res = m_client.send(request); not res) {
-        return Error::unexpected(
-            ErrorCode::connectionFailure,
-            "Failed to send get backups request: {}", res.error()
-        );
-    }
-    auto response = m_client.receive();
-    auto backups = response->get()->as<proto::GetBackupsResponse>();
-
-    for (const auto& backup : backups->backups()) {
-        fmt::print("Backup: {}\n", backup.plan.name);
-        fmt::print("  Enabled: {}\n", backup.enabled);
-
-        if (backup.run) {
-            // fmt::print("  Run: {}\n", backup.run->state);
-        }
-    }
-
-    return {};
+    const auto print = [this](const proto::GetBackupsResponse& response) {
+        printBackups(m_context.output(), response);
+    };
+    return m_context.request<proto::GetBackupsResponse>(
+        proto::GetBackupsRequest{}, print
+    );
 }
 
-Result<void> BackupCommands::activate() {
-    fmt::print(
-        "Mock: backup activate for '{}' is not implemented yet.\n",
-        m_activateName
+Result<void> BackupCommands::reload() {
+    return m_context.acknowledge(
+        proto::ReloadPlansRequest{}, "Backup plans reloaded."
     );
-    return {};
-}
-
-Result<void> BackupCommands::status() {
-    fmt::print(
-        "Mock: backup status for '{}' is not implemented yet.\n",
-        m_statusName.value_or("all backups")
-    );
-    return {};
 }
 
 }  // namespace anchor::cli

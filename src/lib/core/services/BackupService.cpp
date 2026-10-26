@@ -14,7 +14,9 @@ BackupService::BackupService(
       m_ports(ports),
       m_orchestrator(m_ports.backupRepo(), m_ports.executor()),
       m_scheduler(m_ports.backupRepo(), sender()) {
-    readPlans();
+    if (auto result = readPlans(); not result) {
+        log::error("Could not load all backup plans: {}", result.error());
+    }
 }
 
 void BackupService::start() {
@@ -89,6 +91,13 @@ Response BackupService::handle(const DiagnosticRequest& request) {
     return AckResponse{};
 }
 
+Response BackupService::handle(const ReloadPlansRequest&) {
+    if (auto result = readPlans(); not result) {
+        return ErrorResponse{result.error()};
+    }
+    return AckResponse{};
+}
+
 Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {
     if (backup.run && isActive(backup.run->state)) {
         log::info("Backup '{}' is already running.", backup.plan.name);
@@ -131,8 +140,8 @@ Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {
     };
 }
 
-void BackupService::readPlans() {
-    m_ports.planRepo().forEach([&](const auto& plan) {
+Result<void> BackupService::readPlans() {
+    return m_ports.planRepo().forEach([&](const auto& plan) {
         log::info("Loaded backup plan: '{}'", plan.name);
         for (const auto& source : plan.sources) {
             log::info("\tSource: '{}'", source.root.str());
@@ -141,10 +150,7 @@ void BackupService::readPlans() {
             }
         }
 
-        auto backup =
-            m_ports.backupRepo().get(plan.name).value_or(Backup{plan});
-        backup.plan = plan;
-        m_ports.backupRepo().put(backup);
+        m_ports.backupRepo().putPlan(plan);
         m_scheduler.add(plan.name);
     });
 }

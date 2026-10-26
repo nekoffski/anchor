@@ -5,6 +5,7 @@
 #include "ErrorResponse.hh"
 #include "GetBackupsRequest.hh"
 #include "GetBackupsResponse.hh"
+#include "ReloadPlansRequest.hh"
 #include "TriggerBackupRequest.hh"
 
 namespace anchor::proto {
@@ -39,6 +40,8 @@ Result<std::unique_ptr<Message>> Message::create(const Json& json) {
         return GetBackupsRequest::create(body);
     } else if (name == "GetBackupsResponse") {
         return GetBackupsResponse::create(body);
+    } else if (name == "ReloadPlansRequest") {
+        return ReloadPlansRequest::create(body);
     }
     return Error::unexpected(ErrorCode::invalidRequest, "Unknown message name");
 }

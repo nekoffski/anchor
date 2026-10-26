@@ -23,8 +23,9 @@ class BackupService : public Thread {
     Response handle(const TriggerBackupRequest& request);
     Response handle(const GetBackupsRequest& request);
     Response handle(const DiagnosticRequest& request);
+    Response handle(const ReloadPlansRequest& request);
     Result<BackupRunArgs> preflightBackup(const Backup& backup);
-    void readPlans();
+    Result<void> readPlans();
 
     Config m_cfg;
     const FileSystem& m_fs;

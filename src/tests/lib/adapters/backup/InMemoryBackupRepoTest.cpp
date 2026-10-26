@@ -119,4 +119,29 @@ TEST(InMemoryBackupRepo, RunStatusHelpersDoNotCreateMissingBackups) {
     EXPECT_FALSE(repo.get("missing"));
 }
 
+TEST(
+    InMemoryBackupRepo,
+    PuttingPlansCreatesBackupsAndPreservesExistingRunAndEnabledState
+) {
+    InMemoryBackupRepo repo;
+    auto updated = plan();
+    repo.putPlan(updated);
+    ASSERT_TRUE(repo.get("daily"));
+    EXPECT_TRUE(repo.get("daily")->enabled);
+    EXPECT_FALSE(repo.getRunStatus("daily"));
+    repo.put(Backup{.plan = updated, .enabled = false});
+    repo.updateRunStatus(
+        "daily", BackupRunStatus{
+                     .state = BackupRunState::completed, .uuid = "completed-id"
+                 }
+    );
+    updated.destination = Location::local("/changed");
+    repo.putPlan(updated);
+    EXPECT_EQ(repo.get("daily")->plan.destination.str(), "local:///changed");
+    EXPECT_FALSE(repo.get("daily")->enabled);
+    ASSERT_TRUE(repo.getRunStatus("daily"));
+    EXPECT_EQ(repo.getRunStatus("daily")->state, BackupRunState::completed);
+    EXPECT_EQ(repo.getRunStatus("daily")->uuid, "completed-id");
+}
+
 }  // namespace anchor::test

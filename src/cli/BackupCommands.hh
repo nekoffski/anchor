@@ -2,7 +2,7 @@
 
 #include <CLI/CLI.hpp>
 
-#include "Client.hh"
+#include "CommandContext.hh"
 #include "base/Concepts.hh"
 #include "base/Core.hh"
 #include "base/Error.hh"
@@ -11,27 +11,15 @@ namespace anchor::cli {
 
 class BackupCommands : public NonCopyable, public NonMovable {
    public:
-    explicit BackupCommands(CLI::App& app);
-
-    bool selected() const { return m_command.parsed(); }
-    Result<void> run(u16 port);
+    BackupCommands(CLI::App& app, CommandContext& context);
 
    private:
-    void initTrigger();
-    void initList();
-    void initActivate();
-    void initStatus();
-
     Result<void> trigger();
     Result<void> list();
-    Result<void> activate();
-    Result<void> status();
+    Result<void> reload();
 
-    CLI::App& m_command;
-    Client m_client;
+    CommandContext& m_context;
     Str m_triggerName;
-    Str m_activateName;
-    Opt<Str> m_statusName;
 };
 
 }  // namespace anchor::cli

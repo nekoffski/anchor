@@ -2,6 +2,12 @@
 
 namespace anchor::proto {
 
+Json serializeError(const Error& error) {
+    return Json{
+        {"message", error.message()}, {"code", std::to_underlying(error.code())}
+    };
+}
+
 ErrorResponse::ErrorResponse(ErrorCode code, const Str& message)
     : ErrorResponse(Error{code, message}) {}
 
@@ -27,11 +33,6 @@ std::unique_ptr<ErrorResponse> ErrorResponse::create(const Error& error) {
     return std::make_unique<ErrorResponse>(error);
 }
 
-Json ErrorResponse::serializeBody() const {
-    return Json{
-        {"message", m_error.message()},
-        {"code", std::to_underlying(m_error.code())}
-    };
-}
+Json ErrorResponse::serializeBody() const { return serializeError(m_error); }
 
 }  // namespace anchor::proto

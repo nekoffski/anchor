@@ -23,6 +23,7 @@ add_library(anchor STATIC
     "proto/TriggerBackupRequest.cpp"
     "proto/GetBackupsRequest.cpp"
     "proto/GetBackupsResponse.cpp"
+    "proto/ReloadPlansRequest.cpp"
     # -- adapters
     "adapters/asio/AsioServer.cpp"
     "adapters/asio/AsioSession.cpp"

@@ -1,7 +1,5 @@
 #include "Client.hh"
 
-#include "proto/ErrorResponse.hh"
-
 namespace anchor::cli {
 
 namespace {
@@ -60,9 +58,6 @@ Result<std::unique_ptr<proto::Message>> Client::receive() {
         if (not response) {
             return Error::unexpected(response.error());
         }
-        if (const auto* error = (*response)->as<proto::ErrorResponse>()) {
-            return Error::unexpected(error->error());
-        }
         return std::move(*response);
     } catch (const Json::exception& error) {
         return Error::unexpected(
@@ -73,8 +68,17 @@ Result<std::unique_ptr<proto::Message>> Client::receive() {
 }
 
 Result<std::unique_ptr<proto::Message>> Client::request(
-    const proto::Message& message
+    u16 port, const proto::Message& message
 ) {
+    std::error_code ignored;
+    m_socket.close(ignored);
+    m_buffer.clear();
+    if (auto connected = connect(port); not connected) {
+        return Error::unexpected(
+            connected.error().code(), "Could not connect to daemon: {}",
+            connected.error().message()
+        );
+    }
     if (auto sent = send(message); not sent) {
         return Error::unexpected(sent.error());
     }

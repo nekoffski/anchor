@@ -33,6 +33,7 @@ enum class BackupRunState {
     failed
 };
 Str backupRunStateToString(BackupRunState state);
+Result<BackupRunState> backupRunStateFromString(const Str& state);
 bool isActive(BackupRunState state);
 
 struct BackupRunStatus {

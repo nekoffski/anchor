@@ -1,6 +1,33 @@
 #include "GetBackupsResponse.hh"
 
+#include "ErrorResponse.hh"
+
 namespace anchor::proto {
+namespace {
+
+Result<BackupRunStatus> parseRunStatus(const Json& json) {
+    auto state = backupRunStateFromString(json.at("state").get<Str>());
+    if (not state) {
+        return Error::unexpected(state.error());
+    }
+    BackupRunStatus status{.state = *state, .uuid = json.at("uuid").get<Str>()};
+    if (status.uuid.empty()) {
+        return Error::unexpected(
+            ErrorCode::invalidArgument, "Run ID must not be empty"
+        );
+    }
+    if (const auto error = json.find("error");
+        error != json.end() && not error->is_null()) {
+        auto parsed = ErrorResponse::create(*error);
+        if (not parsed) {
+            return Error::unexpected(parsed.error());
+        }
+        status.error = (*parsed)->error();
+    }
+    return status;
+}
+
+}  // namespace
 
 GetBackupsResponse::GetBackupsResponse(std::span<const Backup> backups)
     : MessageImpl("GetBackupsResponse"),
@@ -11,25 +38,43 @@ GetBackupsResponse::GetBackupsResponse() : MessageImpl("GetBackupsResponse") {}
 Result<std::unique_ptr<GetBackupsResponse>> GetBackupsResponse::create(
     const Json& json
 ) {
-    std::vector<Backup> backups;
-
-    for (const auto& backupJson : json) {
-        Backup backup;
-
-        backup.plan.name = backupJson["plan"]["name"].get<std::string>();
-        backup.enabled = backupJson["enabled"].get<bool>();
-
-        if (auto run = json.find("run"); run != json.end()) {
-            backup.run =
-                BackupRunStatus{.uuid = (*run)["uuid"].get<std::string>()};
-        }
-        backups.push_back(backup);
+    if (not json.is_array()) {
+        return Error::unexpected(
+            ErrorCode::invalidArgument, "Expected an array of backups"
+        );
     }
-    return std::make_unique<GetBackupsResponse>(backups);
+    try {
+        std::vector<Backup> backups;
+        for (const auto& backupJson : json) {
+            Backup backup{};
+            backup.plan.name = backupJson.at("plan").at("name").get<Str>();
+            backup.enabled = backupJson.at("enabled").get<bool>();
+            if (backup.plan.name.empty()) {
+                return Error::unexpected(
+                    ErrorCode::invalidArgument, "Backup name must not be empty"
+                );
+            }
+            if (const auto run = backupJson.find("run");
+                run != backupJson.end() && not run->is_null()) {
+                auto status = parseRunStatus(*run);
+                if (not status) {
+                    return Error::unexpected(status.error());
+                }
+                backup.run = std::move(*status);
+            }
+            backups.push_back(std::move(backup));
+        }
+        return std::make_unique<GetBackupsResponse>(backups);
+    } catch (const Json::exception& error) {
+        return Error::unexpected(
+            ErrorCode::invalidArgument, "Invalid backups response: {}",
+            error.what()
+        );
+    }
 }
 
 Json GetBackupsResponse::serializeBody() const {
-    Json body;
+    auto body = Json::array();
     for (const auto& backup : m_backups) {
         Json backupModel;
 
@@ -38,6 +83,12 @@ Json GetBackupsResponse::serializeBody() const {
 
         if (backup.run) {
             backupModel["run"]["uuid"] = backup.run->uuid;
+            backupModel["run"]["state"] =
+                backupRunStateToString(backup.run->state);
+            if (backup.run->error) {
+                backupModel["run"]["error"] =
+                    serializeError(*backup.run->error);
+            }
         }
 
         body.push_back(std::move(backupModel));

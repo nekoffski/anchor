@@ -104,29 +104,37 @@ void BackupScheduler::tick(std::chrono::sys_seconds now) {
 
 void BackupScheduler::run() {
     std::unique_lock lock{m_mutex};
+
     if (m_stopped) {
         return;
     }
+
     const auto startedAt = std::chrono::floor<std::chrono::seconds>(
         std::chrono::system_clock::now()
     );
+
     rebuildDeadlines(startedAt);
+
     const auto hasWorkOrStopped = [this] {
         return m_stopped || not m_deadlines.empty();
     };
+
     while (not m_stopped) {
         if (m_deadlines.empty()) {
             m_condition.wait(lock, hasWorkOrStopped);
             continue;
         }
+
         const auto revision = m_revision;
         const auto deadline = m_deadlines.front().at;
         const auto scheduleChangedOrStopped = [this, revision] {
             return m_stopped || m_revision != revision;
         };
+
         if (m_condition.wait_until(lock, deadline, scheduleChangedOrStopped)) {
             continue;
         }
+
         lock.unlock();
         const auto now = std::chrono::floor<std::chrono::seconds>(
             std::chrono::system_clock::now()

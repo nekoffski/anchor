@@ -14,7 +14,7 @@ class OnDiskBackupPlanRepo : public BackupPlanRepo {
     Result<void> valid() const;
 
     Result<std::vector<Path>> list() const override;
-    void forEach(Callback c) const override;
+    Result<void> forEach(Callback c) const override;
 
    private:
     Path m_plansPath;
