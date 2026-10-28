@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+"$ROOT/bin/test-setup"
+cd "$ROOT"
+"$ROOT/.venv/bin/pyright"
+exec "$ROOT/.venv/bin/python" -m pytest --verbose "$@"

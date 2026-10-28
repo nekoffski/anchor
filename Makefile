@@ -1,4 +1,4 @@
-.PHONY: all bootstrap require-bootstrap build build-release build-debug package-macos test clean fmt fmt-check gen
+.PHONY: all bootstrap require-bootstrap build build-release build-debug package-macos test test-setup test-types test-functional clean fmt fmt-check gen
 
 CLANG_FORMAT ?= clang-format
 BOOTSTRAP_PROFILE := .anchor/bootstrap.profile
@@ -35,6 +35,15 @@ fmt-check:
 
 test: build-debug
 	ctest --preset conan-debug --output-on-failure
+
+test-setup:
+	./bin/test-setup
+
+test-types: test-setup
+	./.venv/bin/pyright
+
+test-functional:
+	./bin/test-functional
 
 clean:
 	rm -rf build CMakeUserPresets.json .anchor

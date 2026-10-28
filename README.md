@@ -38,6 +38,35 @@ make test         # build Debug and run the unit tests
 
 Backup execution and scheduling are described in [docs/scheduling.md](docs/scheduling.md).
 
+## Functional tests
+
+The Python suite starts the real daemon in isolated temporary workspaces and
+talks directly to its JSON/TCP interface. It covers basic plans, reloads,
+directory/ZIP/TGZ backups, scheduling, errors, and shutdown. CLI functional tests
+are outside this suite.
+
+Install [uv](https://docs.astral.sh/uv/), then run:
+
+```sh
+make test-setup       # create .venv and install locked test dependencies
+make test-types       # strict Pyright checks, using the Pylance configuration
+make test-functional  # build Debug binaries, check Python types, run pytest
+```
+
+After building, use the faster runner to select suites or tests:
+
+```sh
+bin/test-functional -q
+bin/test-functional test/test_backups.py -vv
+bin/test-functional -k reload
+```
+
+Tests require Python 3.11 or newer. Pyright uses Node.js when available on
+`PATH`; its Python launcher can provision a runtime otherwise. The `.venv`
+interpreter and strict type-checking settings are declared in `pyproject.toml`.
+Select `.venv/bin/python` in your editor for Pylance to resolve the same dependencies.
+See [test/README.md](test/README.md) for fixture usage and binary overrides.
+
 ## CLI
 
 With the daemon running:
