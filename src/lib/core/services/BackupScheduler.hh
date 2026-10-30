@@ -2,15 +2,16 @@
 
 #include <chrono>
 #include <condition_variable>
+#include <kcore/runtime/Thread.hh>
 #include <mutex>
 
 #include "RequestQueue.hh"
-#include "base/runtime/Thread.hh"
+#include "core/Core.hh"
 #include "core/ports/Backup.hh"
 
 namespace anchor {
 
-class BackupScheduler : public Thread {
+class BackupScheduler : public kc::Thread {
    public:
     explicit BackupScheduler(const BackupRepo& repo, RequestSender sender);
     ~BackupScheduler() override;
@@ -42,7 +43,7 @@ class BackupScheduler : public Thread {
     RequestSender m_sender;
     // A heap vector allows replacing deadlines without retaining stale entries.
     std::vector<Deadline> m_deadlines;
-    Opt<std::chrono::sys_seconds> m_lastTick;
+    kc::Opt<std::chrono::sys_seconds> m_lastTick;
     std::mutex m_mutex;
     std::condition_variable m_condition;
     u64 m_revision{0};

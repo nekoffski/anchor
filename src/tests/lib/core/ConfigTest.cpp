@@ -1,7 +1,9 @@
 #include "TestSupport.hh"
-#include "base/Config.hh"
+#include "core/Config.hh"
+#include "core/Error.hh"
 
 namespace anchor::test {
+using namespace kc;
 using namespace testing;
 using ConfigTest = TemporaryDirectory;
 
@@ -76,12 +78,12 @@ TEST_F(ConfigTest, ConfigReportsEachMissingRequiredFieldAndInvalidPorts) {
         ASSERT_TRUE(fs.writeFile(path("server.yaml"), content));
         auto config = Config::load(path("server.yaml"));
         ASSERT_FALSE(config);
-        EXPECT_EQ(config.error().code(), ErrorCode::invalidConfig);
+        EXPECT_EQ(config.error().code(), kc::ErrorCode::invalidConfig);
         EXPECT_EQ(config.error().message(), "Missing or invalid field: " + key);
     }
     auto missing = Config::load(path("absent"));
     ASSERT_FALSE(missing);
-    EXPECT_EQ(missing.error().code(), ErrorCode::fileNotFound);
+    EXPECT_EQ(missing.error().code(), kc::ErrorCode::fileNotFound);
 }
 
 }  // namespace anchor::test

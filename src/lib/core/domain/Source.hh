@@ -1,17 +1,17 @@
 #pragma once
 
+#include <kcore/Concepts.hh>
+#include <kcore/containers/FlatMap.hh>
+#include <kcore/io/FileSystem.hh>
 #include <unordered_map>
 #include <vector>
 
-#include "base/Concepts.hh"
-#include "base/Core.hh"
-#include "base/FileSystem.hh"
-#include "base/FlatMap.hh"
+#include "core/Core.hh"
 
 namespace anchor {
 
 struct Source {
-    Path root;
+    kc::Path root;
     std::vector<Str> includes;
 };
 
@@ -28,7 +28,7 @@ struct SourceTree {
         Nodes children;
     };
 
-    Path root;
+    kc::Path root;
     Nodes nodes;
 };
 

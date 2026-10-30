@@ -3,21 +3,21 @@
 #include <shared_mutex>
 #include <unordered_map>
 
-#include "base/Core.hh"
+#include "core/Core.hh"
 #include "core/ports/Backup.hh"
 
 namespace anchor {
 
 class InMemoryBackupRepo : public BackupRepo {
    public:
-    Opt<Backup> get(const Str& backupName) const override;
+    kc::Opt<Backup> get(const Str& backupName) const override;
     std::vector<Backup> getAll() const override;
 
     void put(const Backup& backup) override;
     void putPlan(const BackupPlan& plan) override;
     void forEach(Callback c) const override;
 
-    Opt<BackupRunStatus> getRunStatus(const Str& backupName) const override;
+    kc::Opt<BackupRunStatus> getRunStatus(const Str& backupName) const override;
 
     void updateRunStatus(
         const Str& backupName, const BackupRunStatus& status

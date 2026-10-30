@@ -1,18 +1,19 @@
 #pragma once
 
-#include "base/Error.hh"
-#include "base/FileSystem.hh"
-#include "base/Singleton.hh"
+#include <kcore/Singleton.hh>
+#include <kcore/io/FileSystem.hh>
+
+#include "core/Error.hh"
 #include "core/domain/Source.hh"
 
 namespace anchor {
 
-class SourceTreeBuilder : public StaticClass {
+class SourceTreeBuilder : public kc::StaticClass {
    public:
-    static SourceTree build(const FileSystem& fs, const Source& source);
+    static SourceTree build(const kc::FileSystem& fs, const Source& source);
 
     static std::vector<SourceTree> build(
-        const FileSystem& fs, std::span<const Source> sources
+        const kc::FileSystem& fs, std::span<const Source> sources
     );
 };
 

@@ -9,9 +9,11 @@
 
 #include "TestSupport.hh"
 #include "adapters/backup/ArchiveSnapshotter.hh"
+#include "core/Error.hh"
 #include "core/services/SourceTreeBuilder.hh"
 
 namespace anchor::test {
+using namespace kc;
 namespace {
 
 struct ArchivedEntry {
@@ -499,7 +501,7 @@ TEST_P(
             EXPECT_CALL(*output, write(_))
                 .WillOnce(Return(
                     Error::unexpected(
-                        ErrorCode::fileSystemError, "output write failed"
+                        kc::ErrorCode::fileSystemError, "output write failed"
                     )
                 ));
         } else {
@@ -508,7 +510,7 @@ TEST_P(
             EXPECT_CALL(*output, close())
                 .WillOnce(Return(
                     Error::unexpected(
-                        ErrorCode::fileSystemError, "output close failed"
+                        kc::ErrorCode::fileSystemError, "output close failed"
                     )
                 ));
         }
@@ -545,7 +547,7 @@ TEST_P(
         if (Str{failure} == "input read failed") {
             EXPECT_CALL(*input, read(_))
                 .WillOnce(Return(
-                    Error::unexpected(ErrorCode::fileSystemError, failure)
+                    Error::unexpected(kc::ErrorCode::fileSystemError, failure)
                 ));
         } else if (Str{failure} == "File size changed") {
             EXPECT_CALL(*input, read(_)).WillOnce(Return(size_t{0}));
@@ -558,7 +560,7 @@ TEST_P(
                 .WillOnce(Return(size_t{0}));
             EXPECT_CALL(*input, close())
                 .WillOnce(Return(
-                    Error::unexpected(ErrorCode::fileSystemError, failure)
+                    Error::unexpected(kc::ErrorCode::fileSystemError, failure)
                 ));
         }
         EXPECT_CALL(mocked, info(_)).WillOnce(Return(*metadata));
@@ -597,7 +599,7 @@ TEST_P(ArchiveSnapshotterTest, FileSystemPropagatesDirectoryListingFailures) {
     EXPECT_CALL(mocked, listEntries(_))
         .WillOnce(Return(
             Error::unexpected(
-                ErrorCode::fileSystemError, "directory listing failed"
+                kc::ErrorCode::fileSystemError, "directory listing failed"
             )
         ));
     ArchiveSnapshotter snapshotter{mocked, GetParam()};

@@ -2,15 +2,16 @@
 
 #include "BackupOrchestrator.hh"
 #include "BackupScheduler.hh"
-#include "base/Config.hh"
+#include "core/Config.hh"
+#include "core/Error.hh"
 #include "core/ports/Ports.hh"
 
 namespace anchor {
 
-class BackupService : public Thread {
+class BackupService : public kc::Thread {
    public:
     explicit BackupService(
-        const Config& cfg, const FileSystem& fs, Ports ports
+        const Config& cfg, const kc::FileSystem& fs, Ports ports
     );
     ~BackupService() override;
 
@@ -30,7 +31,7 @@ class BackupService : public Thread {
     Result<void> readPlans();
 
     Config m_cfg;
-    const FileSystem& m_fs;
+    const kc::FileSystem& m_fs;
     Ports m_ports;
     RequestQueue m_requests;
     BackupOrchestrator m_orchestrator;

@@ -1,13 +1,14 @@
 #pragma once
 
+#include <kcore/runtime/Thread.hh>
+
 #include "Asio.hh"
 #include "AsioController.hh"
-#include "base/Config.hh"
-#include "base/runtime/Thread.hh"
+#include "core/Config.hh"
 
 namespace anchor {
 
-class AsioServer : public Thread {
+class AsioServer : public kc::Thread {
    public:
     explicit AsioServer(const Config& cfg, AsioController& controller);
     void stop();

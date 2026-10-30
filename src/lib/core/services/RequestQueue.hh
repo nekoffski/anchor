@@ -1,8 +1,9 @@
 #pragma once
 
 #include <future>
+#include <kcore/runtime/ThreadSafeQueue.hh>
 
-#include "base/runtime/ThreadSafeQueue.hh"
+#include "core/Error.hh"
 #include "core/domain/Requests.hh"
 
 namespace anchor {
@@ -12,7 +13,7 @@ struct RequestWrapper {
     std::promise<Response> promise;
 };
 
-using RequestQueue = ThreadSafeQueue<RequestWrapper>;
+using RequestQueue = kc::ThreadSafeQueue<RequestWrapper>;
 
 class RequestSender {
    public:

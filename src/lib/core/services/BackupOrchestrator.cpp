@@ -1,9 +1,12 @@
 #include "BackupOrchestrator.hh"
 
+#include "core/Core.hh"
+#include "core/Error.hh"
+
 namespace anchor {
 
 BackupOrchestrator::BackupOrchestrator(BackupRepo& repo, Executor& executor)
-    : Thread("BackupOrchestrator"), m_repo(repo), m_executor(executor) {}
+    : kc::Thread("BackupOrchestrator"), m_repo(repo), m_executor(executor) {}
 
 BackupOrchestrator::~BackupOrchestrator() {
     stop();
@@ -29,7 +32,7 @@ Result<Uuid> BackupOrchestrator::enqueueBackup(BackupRunArgs&& args) {
             m_repo.clearRunStatus(name);
         }
         return Error::unexpected(
-            ErrorCode::internalError, "Failed to enqueue backup"
+            kc::ErrorCode::internalError, "Failed to enqueue backup"
         );
     }
 

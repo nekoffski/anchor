@@ -2,6 +2,9 @@
 
 #include <array>
 
+#include "core/Core.hh"
+#include "core/Error.hh"
+
 namespace anchor {
 
 bool isActive(BackupRunState state) {
@@ -21,7 +24,7 @@ Result<BackupRunState> backupRunStateFromString(const Str& state) {
         }
     }
     return Error::unexpected(
-        ErrorCode::invalidArgument, "Invalid backup run state: {}", state
+        kc::ErrorCode::invalidArgument, "Invalid backup run state: {}", state
     );
 }
 
@@ -52,7 +55,7 @@ Result<ArchiveType> archiveTypeFromStr(const Str& str) {
         return ArchiveType::tgz;
     }
     return Error::unexpected(
-        ErrorCode::invalidArgument, "Invalid snapshot type: {}", str
+        kc::ErrorCode::invalidArgument, "Invalid snapshot type: {}", str
     );
 }
 

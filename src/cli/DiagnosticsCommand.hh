@@ -1,15 +1,15 @@
 #pragma once
 
 #include <CLI/CLI.hpp>
+#include <kcore/Concepts.hh>
 
 #include "CommandContext.hh"
-#include "base/Concepts.hh"
-#include "base/Core.hh"
-#include "base/Error.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 
 namespace anchor::cli {
 
-class DiagnosticsCommand : public NonCopyable, public NonMovable {
+class DiagnosticsCommand : public kc::NonCopyable, public kc::NonMovable {
    public:
     DiagnosticsCommand(CLI::App& app, CommandContext& context);
 

@@ -2,13 +2,14 @@
 
 #include <algorithm>
 #include <functional>
+#include <kcore/Log.hh>
 
-#include "base/Log.hh"
+#include "core/Core.hh"
 
 namespace anchor {
 
 BackupScheduler::BackupScheduler(const BackupRepo& repo, RequestSender sender)
-    : Thread("BackupScheduler"), m_repo(repo), m_sender(sender) {}
+    : kc::Thread("BackupScheduler"), m_repo(repo), m_sender(sender) {}
 
 BackupScheduler::~BackupScheduler() {
     stop();
@@ -51,7 +52,7 @@ void BackupScheduler::scheduleNext(
         m_deadlines.push_back(Deadline{.name = name, .at = *next});
         std::ranges::push_heap(m_deadlines, std::greater{}, &Deadline::at);
     } else {
-        log::warn("No future cron occurrence for backup '{}'", name);
+        kc::log::warn("No future cron occurrence for backup '{}'", name);
     }
 }
 
@@ -97,7 +98,9 @@ void BackupScheduler::tick(std::chrono::sys_seconds now) {
     for (const auto& name : due) {
         auto request = TriggerBackupRequest{.name = name, .scheduled = true};
         if (auto result = m_sender.send(std::move(request)); not result) {
-            log::error("Could not submit scheduled backup: {}", result.error());
+            kc::log::error(
+                "Could not submit scheduled backup: {}", result.error()
+            );
         }
     }
 }

@@ -1,20 +1,20 @@
 #pragma once
 
+#include <kcore/Concepts.hh>
+#include <kcore/serialization/Json.hh>
 #include <typeindex>
 
-#include "base/Concepts.hh"
-#include "base/Core.hh"
-#include "base/Error.hh"
-#include "base/Json.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 
 namespace anchor::proto {
 
-class Message : public NonCopyable, public NonMovable {
+class Message : public kc::NonCopyable, public kc::NonMovable {
    public:
     virtual ~Message() = default;
 
-    static Result<std::unique_ptr<Message>> create(const Json& json);
-    Json serialize() const;
+    static Result<std::unique_ptr<Message>> create(const kc::Json& json);
+    kc::Json serialize() const;
 
     template <typename T>
         requires std::is_base_of_v<Message, T>
@@ -28,7 +28,7 @@ class Message : public NonCopyable, public NonMovable {
     virtual Str name() const = 0;
 
    private:
-    virtual Json serializeBody() const = 0;
+    virtual kc::Json serializeBody() const = 0;
     virtual std::type_index type() const = 0;
 };
 

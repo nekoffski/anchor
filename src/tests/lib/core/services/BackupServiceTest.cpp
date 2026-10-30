@@ -3,9 +3,11 @@
 #include "TestSupport.hh"
 #include "adapters/backup/InMemoryBackupRepo.hh"
 #include "adapters/executors/InlineExecutor.hh"
+#include "core/Error.hh"
 #include "core/services/BackupService.hh"
 
 namespace anchor::test {
+using namespace kc;
 using namespace testing;
 using namespace std::chrono_literals;
 
@@ -47,12 +49,12 @@ class BackupServiceTest : public Test {
         const auto status = result->wait_for(2s);
         EXPECT_EQ(status, std::future_status::ready);
         if (status != std::future_status::ready) {
-            return ErrorResponse{Error{ErrorCode::timeout}};
+            return ErrorResponse{Error{kc::ErrorCode::timeout}};
         }
         return result->get();
     }
     void expectError(
-        const Response& response, ErrorCode code, const Str& message
+        const Response& response, std::error_code code, const Str& message
     ) {
         auto* error = std::get_if<ErrorResponse>(&response);
         ASSERT_NE(error, nullptr);
@@ -75,7 +77,7 @@ class BackupServiceTest : public Test {
 
 TEST_F(BackupServiceTest, UnknownPlanDoesNotCreateRunOrScheduleWork) {
     expectError(
-        send(TriggerBackupRequest{"missing"}), ErrorCode::invalidArgument,
+        send(TriggerBackupRequest{"missing"}), kc::ErrorCode::invalidArgument,
         "Backup plan not found"
     );
     EXPECT_FALSE(backups.get("missing"));
@@ -136,7 +138,7 @@ TEST_F(BackupServiceTest, ActiveRunsRejectManualTriggersAndSkipScheduledOnes) {
 TEST_F(BackupServiceTest, MissingSnapshotterDoesNotCreateRun) {
     addStore();
     expectError(
-        send(TriggerBackupRequest{"daily"}), ErrorCode::invalidArgument,
+        send(TriggerBackupRequest{"daily"}), kc::ErrorCode::invalidArgument,
         "Snapshotter not found"
     );
     EXPECT_FALSE(backups.getRunStatus("daily"));
@@ -146,7 +148,7 @@ TEST_F(BackupServiceTest, MissingSnapshotterDoesNotCreateRun) {
 TEST_F(BackupServiceTest, MissingStoreDoesNotCreateRun) {
     addSnapshotter();
     expectError(
-        send(TriggerBackupRequest{"daily"}), ErrorCode::invalidArgument,
+        send(TriggerBackupRequest{"daily"}), kc::ErrorCode::invalidArgument,
         "Snapshot store not found"
     );
     EXPECT_FALSE(backups.getRunStatus("daily"));
@@ -228,7 +230,7 @@ TEST_F(BackupServiceTest, TerminalResultsRemainVisibleAndAllowAnotherRun) {
                 .state = state,
                 .error = state == BackupRunState::failed
                              ? Opt<Error>{Error{
-                                   ErrorCode::fileSystemError, "disk full"
+                                   kc::ErrorCode::fileSystemError, "disk full"
                                }}
                              : Opt<Error>{},
                 .uuid = "previous-run"
@@ -297,7 +299,7 @@ TEST_F(BackupServiceTest, ShutdownDrainsRequestsAndQueuedBackupWork) {
     EXPECT_EQ(status->state, BackupRunState::completed);
     auto rejected = sender.send(GetBackupsRequest{});
     ASSERT_FALSE(rejected);
-    EXPECT_EQ(rejected.error().code(), ErrorCode::queueError);
+    EXPECT_EQ(rejected.error().code(), kc::ErrorCode::queueError);
 }
 
 TEST_F(BackupServiceTest, AcceptedRunKeepsItsPlanSnapshot) {
@@ -361,7 +363,7 @@ TEST_F(BackupServiceTest, RealSchedulerSubmitsIntoOwnedQueue) {
         callback();
     }));
     auto failure =
-        Error::unexpected(ErrorCode::fileSystemError, "mkdir failed");
+        Error::unexpected(kc::ErrorCode::fileSystemError, "mkdir failed");
     EXPECT_CALL(fs, createDirectory(_))
         .WillOnce(Invoke([&](const Path&) -> Result<void> {
             attempted.set_value();
@@ -424,12 +426,12 @@ TEST_F(
         .WillOnce(Invoke([&](auto callback) -> Result<void> {
             callback(valid);
             return Error::unexpected(
-                ErrorCode::invalidConfig,
+                kc::ErrorCode::invalidConfig,
                 "Could not load plan 'daily.yaml': invalid cron"
             );
         }));
     expectError(
-        send(ReloadPlansRequest{}), ErrorCode::invalidConfig,
+        send(ReloadPlansRequest{}), kc::ErrorCode::invalidConfig,
         "Could not load plan 'daily.yaml': invalid cron"
     );
     EXPECT_TRUE(backups.get("valid"));
@@ -439,10 +441,11 @@ TEST_F(
     );
     EXPECT_CALL(plans, forEach(_))
         .WillOnce(Return(
-            Error::unexpected(ErrorCode::fileSystemError, "listing failed")
+            Error::unexpected(kc::ErrorCode::fileSystemError, "listing failed")
         ));
     expectError(
-        send(ReloadPlansRequest{}), ErrorCode::fileSystemError, "listing failed"
+        send(ReloadPlansRequest{}), kc::ErrorCode::fileSystemError,
+        "listing failed"
     );
     EXPECT_EQ(backups.getAll().size(), 2);
 }
@@ -456,7 +459,7 @@ TEST_F(BackupServiceTest, ReloadWakesSchedulerWhenAddingFirstCron) {
         callback();
     }));
     auto failure =
-        Error::unexpected(ErrorCode::fileSystemError, "mkdir failed");
+        Error::unexpected(kc::ErrorCode::fileSystemError, "mkdir failed");
     EXPECT_CALL(fs, createDirectory(_))
         .WillOnce(Invoke([&](const Path&) -> Result<void> {
             attempted.set_value();

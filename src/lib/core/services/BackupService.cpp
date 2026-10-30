@@ -1,27 +1,29 @@
 #include "BackupService.hh"
 
+#include <kcore/Log.hh>
+
 #include "BackupRun.hh"
-#include "base/Log.hh"
+#include "core/Error.hh"
 
 namespace anchor {
 
 BackupService::BackupService(
-    const Config& cfg, const FileSystem& fs, Ports ports
+    const Config& cfg, const kc::FileSystem& fs, Ports ports
 )
-    : Thread("BackupService"),
+    : kc::Thread("BackupService"),
       m_cfg(cfg),
       m_fs(fs),
       m_ports(ports),
       m_orchestrator(m_ports.backupRepo(), m_ports.executor()),
       m_scheduler(m_ports.backupRepo(), sender()) {
     if (auto result = readPlans(); not result) {
-        log::error("Could not load all backup plans: {}", result.error());
+        kc::log::error("Could not load all backup plans: {}", result.error());
     }
 }
 
 void BackupService::start() {
     m_orchestrator.start();
-    Thread::start();
+    kc::Thread::start();
     m_scheduler.start();
 }
 
@@ -51,32 +53,34 @@ void BackupService::run() {
 
 Response BackupService::handle(const TriggerBackupRequest& request) {
     const auto& name = request.name;
-    log::debug("Triggering backup: '{}'", name);
+    kc::log::debug("Triggering backup: '{}'", name);
 
     const auto backup = m_ports.backupRepo().get(name);
     if (not backup) {
-        log::error("Backup plan not found: '{}'", name);
+        kc::log::error("Backup plan not found: '{}'", name);
         return ErrorResponse{
-            Error{ErrorCode::invalidArgument, "Backup plan not found"}
+            Error{kc::ErrorCode::invalidArgument, "Backup plan not found"}
         };
     }
 
     if (request.scheduled && (not backup->enabled ||
                               (backup->run && isActive(backup->run->state)))) {
-        log::debug("Skipping scheduled backup '{}'", name);
+        kc::log::debug("Skipping scheduled backup '{}'", name);
         return AckResponse{};
     }
 
     auto args = preflightBackup(*backup);
 
     if (not args) {
-        log::error("Failed to preflight backup: '{}'", name);
+        kc::log::error("Failed to preflight backup: '{}'", name);
         return ErrorResponse{args.error()};
     }
 
     auto result = m_orchestrator.enqueueBackup(std::move(*args));
     if (not result) {
-        log::error("Could not enqueue backup '{}': {}", name, result.error());
+        kc::log::error(
+            "Could not enqueue backup '{}': {}", name, result.error()
+        );
         return ErrorResponse{result.error()};
     }
     return AckResponse{};
@@ -87,7 +91,7 @@ Response BackupService::handle(const GetBackupsRequest&) {
 }
 
 Response BackupService::handle(const DiagnosticRequest& request) {
-    log::debug("Received diagnostic request: {}", request.details);
+    kc::log::debug("Received diagnostic request: {}", request.details);
     return AckResponse{};
 }
 
@@ -100,7 +104,7 @@ Response BackupService::handle(const ReloadPlansRequest&) {
 
 Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {
     if (backup.run && isActive(backup.run->state)) {
-        log::info("Backup '{}' is already running.", backup.plan.name);
+        kc::log::info("Backup '{}' is already running.", backup.plan.name);
         return Error::unexpected(
             ErrorCode::alreadyRunning, "Backup is already running"
         );
@@ -109,24 +113,24 @@ Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {
     auto* snapshotter = m_ports.snapshotters().get(backup.plan.archiveType);
 
     if (not snapshotter) {
-        log::error(
+        kc::log::error(
             "Snapshotter not found: '{}'",
             archiveTypeToStr(backup.plan.archiveType)
         );
         return Error::unexpected(
-            ErrorCode::invalidArgument, "Snapshotter not found"
+            kc::ErrorCode::invalidArgument, "Snapshotter not found"
         );
     }
 
     auto* store = m_ports.snapshotStores().get(backup.plan.destination.type);
 
     if (not store) {
-        log::error(
+        kc::log::error(
             "Snapshot store not found: '{}'",
             locationTypeToStr(backup.plan.destination.type)
         );
         return Error::unexpected(
-            ErrorCode::invalidArgument, "Snapshot store not found"
+            kc::ErrorCode::invalidArgument, "Snapshot store not found"
         );
     }
 
@@ -142,11 +146,11 @@ Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {
 
 Result<void> BackupService::readPlans() {
     return m_ports.planRepo().forEach([&](const auto& plan) {
-        log::info("Loaded backup plan: '{}'", plan.name);
+        kc::log::info("Loaded backup plan: '{}'", plan.name);
         for (const auto& source : plan.sources) {
-            log::info("\tSource: '{}'", source.root.str());
+            kc::log::info("\tSource: '{}'", source.root.str());
             for (const auto& include : source.includes) {
-                log::info("\t\tInclude: '{}'", include);
+                kc::log::info("\t\tInclude: '{}'", include);
             }
         }
 

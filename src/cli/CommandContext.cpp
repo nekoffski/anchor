@@ -1,5 +1,7 @@
 #include "CommandContext.hh"
 
+#include "core/Core.hh"
+#include "core/Error.hh"
 #include "proto/AckResponse.hh"
 
 namespace anchor::cli {
@@ -21,7 +23,9 @@ CLI::App& CommandContext::addCommand(
 
 Result<void> CommandContext::run() {
     if (not m_action) {
-        return Error::unexpected(ErrorCode::invalidArgument, "Missing command");
+        return Error::unexpected(
+            kc::ErrorCode::invalidArgument, "Missing command"
+        );
     }
     return m_action();
 }

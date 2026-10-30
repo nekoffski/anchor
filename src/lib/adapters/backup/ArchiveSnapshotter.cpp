@@ -4,9 +4,11 @@
 #include <archive_entry.h>
 
 #include <array>
+#include <kcore/Functional.hh>
 #include <unordered_map>
 
-#include "base/Functional.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 
 namespace anchor {
 namespace {
@@ -31,7 +33,7 @@ Result<void> check(archive* handle, int status, const Str& operation) {
     return {};
 }
 
-Result<Str> relativeName(const Path& root, const Path& path) {
+Result<Str> relativeName(const kc::Path& root, const kc::Path& path) {
     const auto relative = path.lexicallyRelative(root).normalized();
     if (relative.str().empty() || relative.isAbsolute() ||
         relative.str() == ".." || relative.startsWith("../")) {
@@ -43,12 +45,12 @@ Result<Str> relativeName(const Path& root, const Path& path) {
     return relative.str();
 }
 
-class ArchiveWriter : public NonCopyable, public NonMovable {
+class ArchiveWriter : public kc::NonCopyable, public kc::NonMovable {
    public:
-    explicit ArchiveWriter(const FileSystem& fs) : m_fs(fs) {}
+    explicit ArchiveWriter(const kc::FileSystem& fs) : m_fs(fs) {}
 
     Result<void> write(
-        ArchiveType format, const Path& output,
+        ArchiveType format, const kc::Path& output,
         std::span<const SourceTree> trees
     ) {
         m_archive.reset(archive_write_new());
@@ -57,7 +59,7 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
                 ErrorCode::archiverFailure, "Could not allocate archive writer"
             );
         }
-        return pipeline(
+        return kc::pipeline(
             [this] {
                 return check(
                     m_archive.get(),
@@ -77,7 +79,7 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
         auto* writer = m_archive.get();
         switch (format) {
             case ArchiveType::zip:
-                return pipeline(
+                return kc::pipeline(
                     [&] {
                         return check(
                             writer, archive_write_set_format_zip(writer),
@@ -93,7 +95,7 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
                     }
                 );
             case ArchiveType::tgz:
-                return pipeline(
+                return kc::pipeline(
                     [&] {
                         return check(
                             writer,
@@ -143,9 +145,9 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
         return static_cast<la_ssize_t>(size);
     }
 
-    Result<void> open(const Path& output) {
+    Result<void> open(const kc::Path& output) {
         m_output = output;
-        return m_fs.openFile(output, FileMode::createNew)
+        return m_fs.openFile(output, kc::FileMode::createNew)
             .transform_error([&](const Error& error) {
                 return Error{
                     ErrorCode::archiverFailure,
@@ -153,7 +155,7 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
                     error.message()
                 };
             })
-            .and_then([&](std::unique_ptr<File> file) {
+            .and_then([&](std::unique_ptr<kc::File> file) {
                 m_file = std::move(file);
                 return check(
                     m_archive.get(),
@@ -166,7 +168,7 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
     }
 
     Result<void> finish() {
-        return pipeline(
+        return kc::pipeline(
             [&] {
                 return check(
                     m_archive.get(), archive_write_close(m_archive.get()),
@@ -186,9 +188,10 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
 
     Result<void> writeSources(std::span<const SourceTree> trees) {
         for (const auto& tree : trees) {
-            auto result = tree.root.absolute().and_then([&](const Path& root) {
-                return writeNodes(root, tree.nodes);
-            });
+            auto result =
+                tree.root.absolute().and_then([&](const kc::Path& root) {
+                    return writeNodes(root, tree.nodes);
+                });
             if (not result) {
                 return result;
             }
@@ -196,12 +199,15 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
         return {};
     }
 
-    Result<void> writeNodes(const Path& root, const SourceTree::Nodes& nodes) {
+    Result<void> writeNodes(
+        const kc::Path& root, const SourceTree::Nodes& nodes
+    ) {
         for (const auto& node : nodes | std::views::values) {
-            auto result = pipeline(
+            auto result = kc::pipeline(
                 [&] {
                     return writePath(
-                        root, Path::join(root, node.relativePath).normalized(),
+                        root,
+                        kc::Path::join(root, node.relativePath).normalized(),
                         node.children.empty()
                     );
                 },
@@ -214,7 +220,9 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
         return {};
     }
 
-    Result<void> writePath(const Path& root, const Path& path, bool recursive) {
+    Result<void> writePath(
+        const kc::Path& root, const kc::Path& path, bool recursive
+    ) {
         auto name = relativeName(root, path);
         if (not name) {
             return Error::unexpected(name.error());
@@ -223,14 +231,14 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
         if (not info) {
             return Error::unexpected(info.error());
         }
-        if (not recursive && info->type != FileInfo::Type::directory) {
+        if (not recursive && info->type != kc::FileInfo::Type::directory) {
             return Error::unexpected(
                 ErrorCode::archiverFailure,
                 "Selected parent is not a directory: '{}'", path.str()
             );
         }
         return writeEntry(path, *name, *info).and_then([&]() -> Result<void> {
-            if (not recursive || info->type != FileInfo::Type::directory) {
+            if (not recursive || info->type != kc::FileInfo::Type::directory) {
                 return {};
             }
             auto children = m_fs.listEntries(path);
@@ -247,10 +255,11 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
         });
     }
 
-    Result<bool> registerEntry(const Str& name, FileInfo::Type type) {
+    Result<bool> registerEntry(const Str& name, kc::FileInfo::Type type) {
         const auto [previous, inserted] = m_entries.emplace(name, type);
-        if (not inserted && (type != FileInfo::Type::directory ||
-                             previous->second != FileInfo::Type::directory)) {
+        if (not inserted &&
+            (type != kc::FileInfo::Type::directory ||
+             previous->second != kc::FileInfo::Type::directory)) {
             return Error::unexpected(
                 ErrorCode::archiverFailure, "Conflicting archive path: '{}'",
                 name
@@ -260,15 +269,15 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
     }
 
     Result<void> writeEntry(
-        const Path& path, const Str& name, const FileInfo& info
+        const kc::Path& path, const Str& name, const kc::FileInfo& info
     ) {
-        if (info.type == FileInfo::Type::other) {
+        if (info.type == kc::FileInfo::Type::other) {
             return Error::unexpected(
                 ErrorCode::archiverFailure,
                 "Unsupported source file type: '{}'", path.str()
             );
         }
-        if (info.type == FileInfo::Type::regular) {
+        if (info.type == kc::FileInfo::Type::regular) {
             auto same = m_fs.equivalent(path, m_output);
             if (not same) {
                 return Error::unexpected(same.error());
@@ -293,9 +302,9 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
                 ErrorCode::archiverFailure, "Could not allocate archive entry"
             );
         }
-        const auto type = info.type == FileInfo::Type::directory ? AE_IFDIR
-                          : info.type == FileInfo::Type::symlink ? AE_IFLNK
-                                                                 : AE_IFREG;
+        const auto type = info.type == kc::FileInfo::Type::directory ? AE_IFDIR
+                          : info.type == kc::FileInfo::Type::symlink ? AE_IFLNK
+                                                                     : AE_IFREG;
         archive_entry_set_pathname(entry.get(), name.c_str());
         archive_entry_set_filetype(entry.get(), type);
         archive_entry_set_perm(entry.get(), info.permissions);
@@ -308,11 +317,11 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
             entry.get(), seconds.time_since_epoch().count(),
             (info.modified - seconds).count()
         );
-        if (info.type == FileInfo::Type::symlink) {
+        if (info.type == kc::FileInfo::Type::symlink) {
             archive_entry_set_symlink(entry.get(), info.linkTarget.c_str());
         }
         auto* writer = m_archive.get();
-        return pipeline(
+        return kc::pipeline(
             [&] {
                 return check(
                     writer, archive_write_header(writer, entry.get()),
@@ -320,7 +329,7 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
                 );
             },
             [&] {
-                return info.type == FileInfo::Type::regular
+                return info.type == kc::FileInfo::Type::regular
                            ? copyData(path, info.size)
                            : Result<void>{};
             },
@@ -333,7 +342,7 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
         );
     }
 
-    Result<void> writeData(std::span<const Byte> data, const Path& path) {
+    Result<void> writeData(std::span<const Byte> data, const kc::Path& path) {
         while (not data.empty()) {
             const auto written =
                 archive_write_data(m_archive.get(), data.data(), data.size());
@@ -348,8 +357,8 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
         return {};
     }
 
-    Result<void> copyData(const Path& path, u64 expectedSize) {
-        auto file = m_fs.openFile(path, FileMode::read);
+    Result<void> copyData(const kc::Path& path, u64 expectedSize) {
+        auto file = m_fs.openFile(path, kc::FileMode::read);
         if (not file) {
             return Error::unexpected(file.error());
         }
@@ -378,23 +387,25 @@ class ArchiveWriter : public NonCopyable, public NonMovable {
         return (*file)->close();
     }
 
-    const FileSystem& m_fs;
-    Path m_output;
-    std::unique_ptr<File> m_file;
+    const kc::FileSystem& m_fs;
+    kc::Path m_output;
+    std::unique_ptr<kc::File> m_file;
     ArchiveHandle m_archive{nullptr, archive_write_free};
-    std::unordered_map<Str, FileInfo::Type> m_entries;
+    std::unordered_map<Str, kc::FileInfo::Type> m_entries;
 };
 
 }  // namespace
 
-ArchiveSnapshotter::ArchiveSnapshotter(const FileSystem& fs, ArchiveType format)
+ArchiveSnapshotter::ArchiveSnapshotter(
+    const kc::FileSystem& fs, ArchiveType format
+)
     : m_format(format), m_fs(fs) {}
 
 Result<SnapshotMetadata> ArchiveSnapshotter::snapshot(
     const SnapshotArgs& args
 ) {
     const auto name = args.name + "." + archiveTypeToStr(m_format);
-    const auto output = Path::join(args.workspace, name);
+    const auto output = kc::Path::join(args.workspace, name);
     ArchiveWriter writer{m_fs};
     return writer.write(m_format, output, args.trees)
         .transform([&] {

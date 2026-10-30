@@ -5,11 +5,13 @@
 #include <ostream>
 
 #include "Client.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 #include "proto/ErrorResponse.hh"
 
 namespace anchor::cli {
 
-class CommandContext : public NonCopyable, public NonMovable {
+class CommandContext : public kc::NonCopyable, public kc::NonMovable {
    public:
     CommandContext(Client& client, const u16& port, std::ostream& output);
 

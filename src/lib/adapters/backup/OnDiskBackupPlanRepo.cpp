@@ -1,14 +1,18 @@
 #include "OnDiskBackupPlanRepo.hh"
 
+#include <kcore/Log.hh>
+#include <kcore/serialization/Yaml.hh>
 #include <ranges>
 
-#include "base/Log.hh"
-#include "base/Yaml.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 
 namespace anchor {
 
-Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
-    const auto file = loadYaml(path, fs);
+Result<BackupPlan> parseBackupPlan(
+    const kc::Path& path, const kc::FileSystem& fs
+) {
+    const auto file = kc::loadYaml(path, fs);
 
     if (not file) {
         return Error::unexpected(file.error());
@@ -18,7 +22,7 @@ Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
     plan.name = path.filename();
 
     const auto settings = (*file)["settings"];
-    auto destinationStr = yamlField<Str>(settings, "destination");
+    auto destinationStr = kc::yamlField<Str>(settings, "destination");
     if (not destinationStr) {
         return Error::unexpected(destinationStr.error());
     }
@@ -29,7 +33,7 @@ Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
     }
     plan.destination = *destination;
 
-    auto archiveTypeStr = yamlField<Str>(settings, "archive");
+    auto archiveTypeStr = kc::yamlField<Str>(settings, "archive");
     if (not archiveTypeStr) {
         return Error::unexpected(archiveTypeStr.error());
     }
@@ -41,14 +45,14 @@ Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
     plan.archiveType = *archiveType;
 
     if (settings["cron"].IsDefined()) {
-        auto expression = yamlField<Str>(settings, "cron");
+        auto expression = kc::yamlField<Str>(settings, "cron");
         if (not expression) {
             return Error::unexpected(expression.error());
         }
         auto cron = Cron::fromString(*expression);
         if (not cron) {
             return Error::unexpected(
-                ErrorCode::invalidConfig, cron.error().message()
+                kc::ErrorCode::invalidConfig, cron.error().message()
             );
         }
         plan.cron = std::move(*cron);
@@ -57,19 +61,19 @@ Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
     const auto sources = (*file)["sources"];
     if (not sources.IsDefined() or not sources.IsSequence()) {
         return Error::unexpected(
-            ErrorCode::invalidConfig, "Missing or invalid field: sources"
+            kc::ErrorCode::invalidConfig, "Missing or invalid field: sources"
         );
     }
 
     for (const auto& source : sources) {
         if (not source.IsDefined()) {
             return Error::unexpected(
-                ErrorCode::invalidConfig, "Invalid source in sources"
+                kc::ErrorCode::invalidConfig, "Invalid source in sources"
             );
         }
         if (not source.IsMap()) {
             return Error::unexpected(
-                ErrorCode::invalidConfig, "Expected a map in sources"
+                kc::ErrorCode::invalidConfig, "Expected a map in sources"
             );
         }
 
@@ -77,7 +81,7 @@ Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
 
         if (not root.IsDefined() || not root.IsScalar()) {
             return Error::unexpected(
-                ErrorCode::invalidConfig, "Missing or invalid field: root"
+                kc::ErrorCode::invalidConfig, "Missing or invalid field: root"
             );
         }
 
@@ -85,17 +89,19 @@ Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
 
         if (not includes.IsDefined() || not includes.IsSequence()) {
             return Error::unexpected(
-                ErrorCode::invalidConfig, "Missing or invalid field: includes"
+                kc::ErrorCode::invalidConfig,
+                "Missing or invalid field: includes"
             );
         }
 
         Source src;
-        src.root = Path{root.Scalar()}.resolveEnv();
+        src.root = kc::Path{root.Scalar()}.resolveEnv();
 
         for (const auto& include : includes) {
             if (not include.IsScalar()) {
                 return Error::unexpected(
-                    ErrorCode::invalidConfig, "Expected a scalar in includes"
+                    kc::ErrorCode::invalidConfig,
+                    "Expected a scalar in includes"
                 );
             }
             src.includes.emplace_back(include.Scalar());
@@ -107,21 +113,21 @@ Result<BackupPlan> parseBackupPlan(const Path& path, const FileSystem& fs) {
 }
 
 OnDiskBackupPlanRepo::OnDiskBackupPlanRepo(
-    const Path& plansPath, const FileSystem& fs
+    const kc::Path& plansPath, const kc::FileSystem& fs
 )
     : m_plansPath(plansPath), m_fs(fs) {}
 
 Result<void> OnDiskBackupPlanRepo::valid() const {
     if (not m_fs.isDirectory(m_plansPath)) {
         return Error::unexpected(
-            ErrorCode::invalidArgument, "Plans path is not a directory"
+            kc::ErrorCode::invalidArgument, "Plans path is not a directory"
         );
     }
     return {};
 }
 
-Result<std::vector<Path>> OnDiskBackupPlanRepo::list() const {
-    static auto isYaml = [](const Path& p) {
+Result<std::vector<kc::Path>> OnDiskBackupPlanRepo::list() const {
+    static auto isYaml = [](const kc::Path& p) {
         return p.endsWith(".yaml") or p.endsWith(".yml");
     };
 
@@ -135,18 +141,18 @@ Result<std::vector<Path>> OnDiskBackupPlanRepo::list() const {
 Result<void> OnDiskBackupPlanRepo::forEach(Callback callback) const {
     const auto& paths = list();
     if (not paths) {
-        log::error("Could not list backup plans: {}", paths.error());
+        kc::log::error("Could not list backup plans: {}", paths.error());
         return Error::unexpected(paths.error());
     }
 
-    Opt<Error> failure;
+    kc::Opt<Error> failure;
     for (const auto& path : *paths) {
-        log::debug("Parsing backup plan: {}", path.str());
+        kc::log::debug("Parsing backup plan: {}", path.str());
 
         if (auto plan = parseBackupPlan(path, m_fs); plan) {
             callback(*plan);
         } else {
-            log::error(
+            kc::log::error(
                 "Could not load backup plan: {} due to {}", path.str(),
                 plan.error()
             );

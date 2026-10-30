@@ -1,11 +1,12 @@
 #pragma once
 
+#include <kcore/Concepts.hh>
+#include <kcore/containers/InterfaceMap.hh>
+#include <kcore/io/FileSystem.hh>
 #include <unordered_map>
 
-#include "base/Concepts.hh"
-#include "base/Core.hh"
-#include "base/FileSystem.hh"
-#include "base/InterfaceMap.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 #include "core/domain/Backup.hh"
 #include "core/domain/Snapshot.hh"
 
@@ -14,19 +15,19 @@ namespace anchor {
 struct SnapshotArgs {
     const Str& name;
     std::span<const SourceTree> trees;
-    const Path& workspace;
+    const kc::Path& workspace;
 };
 
-class Snapshotter : public NonCopyable, public NonMovable {
+class Snapshotter : public kc::NonCopyable, public kc::NonMovable {
    public:
     virtual ~Snapshotter() = default;
 
     virtual Result<SnapshotMetadata> snapshot(const SnapshotArgs& args) = 0;
 };
 
-using Snapshotters = InterfaceMap<ArchiveType, Snapshotter>;
+using Snapshotters = kc::InterfaceMap<ArchiveType, Snapshotter>;
 
-class SnapshotStore : public NonCopyable, public NonMovable {
+class SnapshotStore : public kc::NonCopyable, public kc::NonMovable {
    public:
     virtual ~SnapshotStore() = default;
 
@@ -35,6 +36,6 @@ class SnapshotStore : public NonCopyable, public NonMovable {
     ) = 0;
 };
 
-using SnapshotStores = InterfaceMap<LocationType, SnapshotStore>;
+using SnapshotStores = kc::InterfaceMap<LocationType, SnapshotStore>;
 
 }  // namespace anchor

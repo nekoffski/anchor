@@ -2,9 +2,10 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <kcore/String.hh>
 #include <ranges>
 
-#include "base/String.hh"
+#include "core/Core.hh"
 
 namespace anchor {
 
@@ -12,7 +13,7 @@ namespace {
 
 void logRecursive(const SourceTree::Nodes& node, u64 level = 1) {
     for (const auto& [k, v] : node) {
-        log::debug("{}{}", std::string(level * 2, ' '), k);
+        kc::log::debug("{}{}", std::string(level * 2, ' '), k);
         logRecursive(v.children, level + 1);
     }
 }
@@ -20,14 +21,14 @@ void logRecursive(const SourceTree::Nodes& node, u64 level = 1) {
 }  // namespace
 
 SourceTree SourceTreeBuilder::build(
-    const FileSystem& fs, const Source& source
+    const kc::FileSystem& fs, const Source& source
 ) {
     SourceTree tree;
     tree.root = source.root;
 
-    std::vector<Path> paths;
+    std::vector<kc::Path> paths;
     for (const auto& include : source.includes) {
-        auto p = fs.glob(Path::join(source.root, include).str());
+        auto p = fs.glob(kc::Path::join(source.root, include).str());
         std::move(p.begin(), p.end(), std::back_inserter(paths));
     }
 
@@ -35,7 +36,7 @@ SourceTree SourceTreeBuilder::build(
         return tree;
     }
 
-    std::ranges::sort(paths, {}, [](const Path& path) {
+    std::ranges::sort(paths, {}, [](const kc::Path& path) {
         return std::filesystem::path{path.str()};
     });
 
@@ -54,8 +55,8 @@ SourceTree SourceTreeBuilder::build(
         auto root = tree.root;
         auto* level = &tree.nodes;
 
-        for (const auto& component : split(suffix.str(), "/")) {
-            root = Path::join(root, component);
+        for (const auto& component : kc::split(suffix.str(), "/")) {
+            root = kc::Path::join(root, component);
             auto& node = (*level)[component];
 
             node.name = component;
@@ -66,8 +67,8 @@ SourceTree SourceTreeBuilder::build(
         }
     }
 
-    if (log::level() >= log::Level::debug) {
-        log::debug("Source tree '{}':", tree.root.str());
+    if (kc::log::level() >= kc::log::Level::debug) {
+        kc::log::debug("Source tree '{}':", tree.root.str());
         logRecursive(tree.nodes);
     }
 
@@ -75,7 +76,7 @@ SourceTree SourceTreeBuilder::build(
 }
 
 std::vector<SourceTree> SourceTreeBuilder::build(
-    const FileSystem& fs, std::span<const Source> sources
+    const kc::FileSystem& fs, std::span<const Source> sources
 ) {
     auto convert = [&](const Source& source) -> SourceTree {
         return build(fs, source);

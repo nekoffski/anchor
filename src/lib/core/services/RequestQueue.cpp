@@ -1,5 +1,7 @@
 #include "RequestQueue.hh"
 
+#include "core/Error.hh"
+
 namespace anchor {
 
 Result<std::future<Response>> RequestSender::send(Request&& req) {
@@ -8,7 +10,7 @@ Result<std::future<Response>> RequestSender::send(Request&& req) {
 
     if (not m_q.push(std::move(wrapper))) {
         return Error::unexpected(
-            ErrorCode::queueError, "Failed to push request to queue"
+            kc::ErrorCode::queueError, "Failed to push request to queue"
         );
     }
 

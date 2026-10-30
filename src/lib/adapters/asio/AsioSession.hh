@@ -1,17 +1,17 @@
 #pragma once
 
 #include <array>
+#include <kcore/Concepts.hh>
 
 #include "Asio.hh"
 #include "AsioController.hh"
-#include "base/Concepts.hh"
-#include "base/Core.hh"
-#include "base/Error.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 #include "proto/Message.hh"
 
 namespace anchor {
 
-class AsioSession : public NonCopyable, public NonMovable {
+class AsioSession : public kc::NonCopyable, public kc::NonMovable {
    public:
     explicit AsioSession(
         asio::ip::tcp::socket socket, AsioController& controller

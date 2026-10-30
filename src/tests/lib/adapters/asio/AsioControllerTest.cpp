@@ -1,5 +1,6 @@
 #include "TestSupport.hh"
 #include "adapters/asio/AsioController.hh"
+#include "core/Error.hh"
 #include "proto/AckResponse.hh"
 #include "proto/DiagnosticRequest.hh"
 #include "proto/ErrorResponse.hh"
@@ -9,6 +10,7 @@
 #include "proto/TriggerBackupRequest.hh"
 
 namespace anchor::test {
+using namespace kc;
 using namespace std::chrono_literals;
 
 TEST(AsioController, DiagnosticRequestsAreAcknowledgedAndQueued) {
@@ -55,7 +57,7 @@ TEST(AsioController, ClosedQueueReturnsQueueErrorForBothRequests) {
     for (const auto* response : {diagnostic.get(), backup.get()}) {
         auto* error = response->as<proto::ErrorResponse>();
         ASSERT_NE(error, nullptr);
-        EXPECT_EQ(error->error().code(), ErrorCode::queueError);
+        EXPECT_EQ(error->error().code(), kc::ErrorCode::queueError);
     }
     EXPECT_FALSE(queue.tryPop());
 }
@@ -82,13 +84,13 @@ TEST(AsioController, ReloadRequestsUseServiceQueueAndForwardLoadingErrors) {
     EXPECT_TRUE(std::holds_alternative<ReloadPlansRequest>(request->request));
     EXPECT_EQ(response.wait_for(0ms), std::future_status::timeout);
     request->promise.set_value(
-        ErrorResponse{Error{ErrorCode::invalidConfig, "bad plan"}}
+        ErrorResponse{Error{kc::ErrorCode::invalidConfig, "bad plan"}}
     );
     ASSERT_EQ(response.wait_for(1s), std::future_status::ready);
     auto message = response.get();
     const auto* error = message->as<proto::ErrorResponse>();
     ASSERT_NE(error, nullptr);
-    EXPECT_EQ(error->error().code(), ErrorCode::invalidConfig);
+    EXPECT_EQ(error->error().code(), kc::ErrorCode::invalidConfig);
     EXPECT_EQ(error->error().message(), "bad plan");
 }
 

@@ -19,12 +19,28 @@ Install these prerequisites and make sure they are available in `PATH`:
 - A C++23 compiler: GCC 14+, Clang 18+, or Apple Clang 17+
 
 ```sh
+git submodule update --init --recursive
 make bootstrap  # select a compiler and create the local Conan profile
 make build      # install dependencies and build Release binaries
 ```
 
 Run `make bootstrap` once before the first build. It saves the compiler settings
 in `.anchor/bootstrap.profile`.
+
+Shared utilities live in the [kcore](https://github.com/nekoffski/kcore)
+submodule at `external/kcore`. CMake builds it together with Anchor and links
+`kcore::kcore`; its C++ namespace is `kc`. Commit library changes in that
+repository, then update Anchor's submodule pointer to the desired commit.
+
+The submodule tracks `main`. To update it to the latest revision on that branch:
+
+```sh
+git submodule update --remote --merge external/kcore
+```
+
+For library development after a fresh clone, run
+`git -C external/kcore switch main` before editing. Git still records a specific
+kcore commit in Anchor; commit the updated pointer after testing the change.
 
 Binaries are written to `build/Release/src/cli/anchor` and
 `build/Release/src/daemon/anchord`.

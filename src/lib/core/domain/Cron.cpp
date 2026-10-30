@@ -1,13 +1,15 @@
 #include "Cron.hh"
 
 #include <algorithm>
+#include <kcore/Log.hh>
 
-#include "base/Log.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 
 namespace anchor {
 namespace {
 
-Opt<std::chrono::sys_seconds> nextCandidate(
+kc::Opt<std::chrono::sys_seconds> nextCandidate(
     const cron::cronexpr& expression, std::chrono::sys_seconds time
 ) {
     const auto native = std::chrono::system_clock::to_time_t(time);
@@ -20,7 +22,9 @@ Opt<std::chrono::sys_seconds> nextCandidate(
     );
 }
 
-Opt<std::chrono::sys_seconds> searchAfterDstGap(std::chrono::sys_seconds time) {
+kc::Opt<std::chrono::sys_seconds> searchAfterDstGap(
+    std::chrono::sys_seconds time
+) {
     const auto native = std::chrono::system_clock::to_time_t(time);
     std::tm date{};
     if (not cron::utils::time_to_tm(&native, &date)) {
@@ -51,18 +55,19 @@ Result<Cron> Cron::fromString(const Str& cron) {
         return Cron{cron::make_cron(cron)};
     } catch (const cron::bad_cronexpr& e) {
         return Error::unexpected(
-            ErrorCode::invalidArgument, "Invalid cron expression: {}", e.what()
+            kc::ErrorCode::invalidArgument, "Invalid cron expression: {}",
+            e.what()
         );
     }
 }
 
 Cron::Cron(cron::cronexpr&& expr) : m_expr(std::move(expr)) {}
 
-Opt<std::chrono::sys_seconds> Cron::nextAfter(
+kc::Opt<std::chrono::sys_seconds> Cron::nextAfter(
     std::chrono::sys_seconds time
 ) const {
     try {
-        auto search = Opt{time};
+        auto search = kc::Opt{time};
         while (search) {
             const auto candidate = nextCandidate(m_expr, *search);
             if (not candidate) {
@@ -76,7 +81,7 @@ Opt<std::chrono::sys_seconds> Cron::nextAfter(
                 *candidate > *search ? candidate : searchAfterDstGap(*search);
         }
     } catch (const cron::bad_cronexpr& e) {
-        log::warn(
+        kc::log::warn(
             "Could not find the next occurrence of '{}': {}",
             cron::to_cronstr(m_expr), e.what()
         );
@@ -96,7 +101,7 @@ bool Cron::matches(std::chrono::sys_seconds time) const {
         const auto current = std::chrono::system_clock::to_time_t(time);
         return cron::cron_next(m_expr, previous) == current;
     } catch (const cron::bad_cronexpr& e) {
-        log::warn(
+        kc::log::warn(
             "Could not evaluate cron expression '{}': {}",
             cron::to_cronstr(m_expr), e.what()
         );

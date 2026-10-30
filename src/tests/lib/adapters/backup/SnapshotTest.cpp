@@ -1,9 +1,11 @@
 #include "TestSupport.hh"
 #include "adapters/backup/DirectorySnapshotter.hh"
 #include "adapters/backup/OnDiskSnapshotStore.hh"
+#include "core/Error.hh"
 #include "core/services/SourceTreeBuilder.hh"
 
 namespace anchor::test {
+using namespace kc;
 using namespace testing;
 using SnapshotTest = TemporaryDirectory;
 
@@ -86,7 +88,7 @@ TEST(DirectorySnapshotter, CreationFailureStopsBeforeCopying) {
     DirectorySnapshotter snapshotter{fs};
     EXPECT_CALL(fs, createDirectory(_))
         .WillOnce(Return(
-            Error::unexpected(ErrorCode::fileSystemError, "mkdir failed")
+            Error::unexpected(kc::ErrorCode::fileSystemError, "mkdir failed")
         ));
     const Str name = "daily";
     const Path workspace{"/workspace"};
@@ -102,7 +104,7 @@ TEST(DirectorySnapshotter, CreationFailureStopsBeforeCopying) {
     };
     auto result = snapshotter.snapshot({name, trees, workspace});
     ASSERT_FALSE(result);
-    EXPECT_EQ(result.error().code(), ErrorCode::fileSystemError);
+    EXPECT_EQ(result.error().code(), kc::ErrorCode::fileSystemError);
     EXPECT_EQ(result.error().message(), "mkdir failed");
 }
 
@@ -115,7 +117,7 @@ TEST(DirectorySnapshotter, NestedDirectoryCreationFailureStopsBeforeCopying) {
         .WillOnce(Invoke([](const Path& destination) -> Result<void> {
             EXPECT_EQ(destination.filenameWithExtension(), "docs");
             return Error::unexpected(
-                ErrorCode::fileSystemError, "nested mkdir failed"
+                kc::ErrorCode::fileSystemError, "nested mkdir failed"
             );
         }));
     const Str name = "daily";
@@ -137,7 +139,7 @@ TEST(DirectorySnapshotter, NestedDirectoryCreationFailureStopsBeforeCopying) {
     };
     auto result = snapshotter.snapshot({name, trees, workspace});
     ASSERT_FALSE(result);
-    EXPECT_EQ(result.error().code(), ErrorCode::fileSystemError);
+    EXPECT_EQ(result.error().code(), kc::ErrorCode::fileSystemError);
     EXPECT_EQ(result.error().message(), "nested mkdir failed");
 }
 
@@ -153,7 +155,7 @@ TEST(DirectorySnapshotter, CopyFailureStopsAndPreservesError) {
                 EXPECT_EQ(source.str(), "/source/missing");
                 EXPECT_EQ(destination.filenameWithExtension(), "missing");
                 return Error::unexpected(
-                    ErrorCode::fileNotFound, "missing source"
+                    kc::ErrorCode::fileNotFound, "missing source"
                 );
             }
         ));
@@ -178,7 +180,7 @@ TEST(DirectorySnapshotter, CopyFailureStopsAndPreservesError) {
     };
     auto result = snapshotter.snapshot({name, trees, workspace});
     ASSERT_FALSE(result);
-    EXPECT_EQ(result.error().code(), ErrorCode::fileNotFound);
+    EXPECT_EQ(result.error().code(), kc::ErrorCode::fileNotFound);
     EXPECT_EQ(result.error().message(), "missing source");
 }
 
@@ -194,7 +196,7 @@ TEST(DirectorySnapshotter, DirectoryCopyFailurePreservesError) {
                 EXPECT_EQ(source.str(), "/source/assets");
                 EXPECT_EQ(destination.filenameWithExtension(), "assets");
                 return Error::unexpected(
-                    ErrorCode::fileSystemError, "directory copy failed"
+                    kc::ErrorCode::fileSystemError, "directory copy failed"
                 );
             }
         ));
@@ -212,7 +214,7 @@ TEST(DirectorySnapshotter, DirectoryCopyFailurePreservesError) {
     };
     auto result = snapshotter.snapshot({name, trees, workspace});
     ASSERT_FALSE(result);
-    EXPECT_EQ(result.error().code(), ErrorCode::fileSystemError);
+    EXPECT_EQ(result.error().code(), kc::ErrorCode::fileSystemError);
     EXPECT_EQ(result.error().message(), "directory copy failed");
 }
 
@@ -244,21 +246,21 @@ TEST(OnDiskSnapshotStore, RejectsRemoteDestinationBeforeCopying) {
         {"snapshot", Location::local("/source")}, Location::s3("bucket")
     );
     ASSERT_FALSE(result);
-    EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+    EXPECT_EQ(result.error().code(), kc::ErrorCode::invalidArgument);
 }
 
 TEST(OnDiskSnapshotStore, CopyFailureReturnsFilesystemError) {
     StrictMock<MockFileSystem> fs;
     OnDiskSnapshotStore store{fs};
     EXPECT_CALL(fs, copyRecursive(_, _))
-        .WillOnce(
-            Return(Error::unexpected(ErrorCode::fileSystemError, "copy failed"))
-        );
+        .WillOnce(Return(
+            Error::unexpected(kc::ErrorCode::fileSystemError, "copy failed")
+        ));
     auto result = store.put(
         {"snapshot", Location::local("/source")}, Location::local("/backup")
     );
     ASSERT_FALSE(result);
-    EXPECT_EQ(result.error().code(), ErrorCode::fileSystemError);
+    EXPECT_EQ(result.error().code(), kc::ErrorCode::fileSystemError);
     EXPECT_THAT(result.error().message(), HasSubstr("/backup/snapshot"));
 }
 

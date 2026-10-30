@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Message.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 
 namespace anchor::proto {
 
@@ -9,12 +11,12 @@ class TriggerBackupRequest : public MessageImpl<TriggerBackupRequest> {
     explicit TriggerBackupRequest(const Str& name);
 
     static Result<std::unique_ptr<TriggerBackupRequest>> create(
-        const Json& body
+        const kc::Json& body
     );
     const Str& backupName() const { return m_name; }
 
    private:
-    Json serializeBody() const override;
+    kc::Json serializeBody() const override;
     Str m_name;
 };
 

@@ -4,11 +4,12 @@
 
 #include "BackupCommands.hh"
 #include "DiagnosticsCommand.hh"
-#include "base/Config.hh"
+#include "core/Config.hh"
+#include "core/Core.hh"
 
 namespace anchor::cli {
 
-class Application : public NonCopyable, public NonMovable {
+class Application : public kc::NonCopyable, public kc::NonMovable {
    public:
     Application(Client& client, std::ostream& output, std::ostream& errors);
     int run(int argc, const char* const* argv);

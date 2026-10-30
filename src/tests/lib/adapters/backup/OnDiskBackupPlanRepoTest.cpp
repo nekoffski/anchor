@@ -1,7 +1,9 @@
 #include "TestSupport.hh"
 #include "adapters/backup/OnDiskBackupPlanRepo.hh"
+#include "core/Error.hh"
 
 namespace anchor::test {
+using namespace kc;
 using namespace testing;
 using ConfigTest = TemporaryDirectory;
 
@@ -23,7 +25,7 @@ TEST_F(ConfigTest, PlanRepoValidatesDirectoryAndFiltersYamlFiles) {
     OnDiskBackupPlanRepo missing{path("absent"), fs};
     auto result = missing.valid();
     ASSERT_FALSE(result);
-    EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+    EXPECT_EQ(result.error().code(), kc::ErrorCode::invalidArgument);
 }
 
 TEST_F(ConfigTest, PlanRepoParsesPlansAndSkipsReportedErrors) {
@@ -167,7 +169,7 @@ TEST_F(ConfigTest, PlanRepoPropagatesListingErrorsAndSkipsIteration) {
     EXPECT_CALL(mock, listFiles(_))
         .Times(2)
         .WillRepeatedly(Return(
-            Error::unexpected(ErrorCode::fileSystemError, "listing failed")
+            Error::unexpected(kc::ErrorCode::fileSystemError, "listing failed")
         ));
     auto result = repo.list();
     ASSERT_FALSE(result);

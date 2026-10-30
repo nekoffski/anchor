@@ -1,4 +1,9 @@
 
+#include <kcore/Functional.hh>
+#include <kcore/Log.hh>
+#include <kcore/Unwrap.hh>
+#include <kcore/runtime/SignalHandler.hh>
+
 #include "adapters/asio/AsioServer.hh"
 #include "adapters/backup/ArchiveSnapshotter.hh"
 #include "adapters/backup/DirectorySnapshotter.hh"
@@ -6,35 +11,31 @@
 #include "adapters/backup/OnDiskBackupPlanRepo.hh"
 #include "adapters/backup/OnDiskSnapshotStore.hh"
 #include "adapters/executors/InlineExecutor.hh"
-#include "base/Functional.hh"
-#include "base/Log.hh"
-#include "base/Unwrap.hh"
-#include "base/runtime/SignalHandler.hh"
 #include "core/services/BackupService.hh"
 
 using namespace anchor;
 
 int main(int argc, const char** argv) {
-    log::expect(argc == 2, "Usage: {} <config_file>", argv[0]);
+    kc::log::expect(argc == 2, "Usage: {} <config_file>", argv[0]);
 
-    Path configPath{argv[1]};
-    auto cfg = unwrap(Config::load(configPath));
+    kc::Path configPath{argv[1]};
+    auto cfg = kc::unwrap(Config::load(configPath));
 
-    log::init(
-        log::LoggerOptions{
+    kc::log::init(
+        kc::log::LoggerOptions{
             .enableColors = false,
-            .level = log::Level::debug,
+            .level = kc::log::Level::debug,
             .formatPattern = "%^[%d-%m-%Y %T] [Th: %t] %-7l [anchord]: %v %$",
         }
     );
-    log::info("daemon starting");
-    DEFER { log::info("daemon shutting down, cya!"); };
+    kc::log::info("daemon starting");
+    KCORE_DEFER { kc::log::info("daemon shutting down, cya!"); };
 
-    FileSystem fs;
-    SignalHandler signals;
+    kc::FileSystem fs;
+    kc::SignalHandler signals;
 
     OnDiskBackupPlanRepo backupPlanRepo{cfg.paths.backupPlans, fs};
-    log::expect(backupPlanRepo.valid());
+    kc::log::expect(backupPlanRepo.valid());
 
     Snapshotters snapshotters;
     snapshotters.add<DirectorySnapshotter>(ArchiveType::directory, fs);
@@ -64,20 +65,20 @@ int main(int argc, const char** argv) {
     AsioServer server{cfg, controller};
     server.start();
 
-    signals.wait([&](Signal s) {
-        log::info("received signal: {}", toString(s));
+    signals.wait([&](kc::Signal s) {
+        kc::log::info("received signal: {}", toString(s));
 
-        if (s == Signal::sigint || s == Signal::sigterm) {
-            log::info("received shutdown request");
+        if (s == kc::Signal::sigint || s == kc::Signal::sigterm) {
+            kc::log::info("received shutdown request");
 
             server.stop();
             backupService.stop();
 
-            return SignalAction::stop;
+            return kc::SignalAction::stop;
         }
-        return SignalAction::waitForNext;
+        return kc::SignalAction::waitForNext;
     });
 
-    Thread::join(server, backupService);
+    kc::Thread::join(server, backupService);
     return 0;
 }

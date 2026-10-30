@@ -1,16 +1,17 @@
 #pragma once
 
 #include "Message.hh"
+#include "core/Error.hh"
 
 namespace anchor::proto {
 
 class AckResponse : public MessageImpl<AckResponse> {
    public:
     AckResponse();
-    static Result<std::unique_ptr<AckResponse>> create(const Json& body);
+    static Result<std::unique_ptr<AckResponse>> create(const kc::Json& body);
 
    private:
-    Json serializeBody() const override;
+    kc::Json serializeBody() const override;
 };
 
 }  // namespace anchor::proto

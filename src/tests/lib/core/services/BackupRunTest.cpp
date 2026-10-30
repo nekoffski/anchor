@@ -1,7 +1,9 @@
 #include "TestSupport.hh"
+#include "core/Error.hh"
 #include "core/services/BackupRun.hh"
 
 namespace anchor::test {
+using namespace kc;
 using namespace testing;
 
 class BackupRunTest : public Test {
@@ -49,7 +51,7 @@ class BackupRunTest : public Test {
                 EXPECT_EQ(path.str(), created);
                 if (fail) {
                     return Error::unexpected(
-                        ErrorCode::fileSystemError, "cleanup failed"
+                        kc::ErrorCode::fileSystemError, "cleanup failed"
                     );
                 }
                 return {};
@@ -116,7 +118,7 @@ TEST_F(BackupRunTest, WorkspaceFailureDoesNotSnapshotOrRemoveWorkspace) {
     expectState(BackupRunState::starting);
     EXPECT_CALL(fs, createDirectory(_))
         .WillOnce(Return(
-            Error::unexpected(ErrorCode::fileSystemError, "mkdir failed")
+            Error::unexpected(kc::ErrorCode::fileSystemError, "mkdir failed")
         ));
     EXPECT_CALL(
         backups,
@@ -125,7 +127,7 @@ TEST_F(BackupRunTest, WorkspaceFailureDoesNotSnapshotOrRemoveWorkspace) {
                                    status.state == BackupRunState::failed &&
                                    status.error &&
                                    status.error->code() ==
-                                       ErrorCode::fileSystemError;
+                                       kc::ErrorCode::fileSystemError;
                         }))
     );
     start();
@@ -138,9 +140,9 @@ TEST_F(BackupRunTest, SnapshotFailureIsStoredAndWorkspaceIsCleaned) {
     expectState(BackupRunState::snapshotting);
     expectSourceTree();
     EXPECT_CALL(snapshotter, snapshot(_))
-        .WillOnce(
-            Return(Error::unexpected(ErrorCode::fileNotFound, "source missing"))
-        );
+        .WillOnce(Return(
+            Error::unexpected(kc::ErrorCode::fileNotFound, "source missing")
+        ));
     EXPECT_CALL(
         backups,
         updateRunStatus("daily", Truly([&](const BackupRunStatus& status) {
@@ -148,7 +150,7 @@ TEST_F(BackupRunTest, SnapshotFailureIsStoredAndWorkspaceIsCleaned) {
                                    status.state == BackupRunState::failed &&
                                    status.error &&
                                    status.error->code() ==
-                                       ErrorCode::fileNotFound &&
+                                       kc::ErrorCode::fileNotFound &&
                                    status.error->message() == "source missing";
                         }))
     );
@@ -165,9 +167,9 @@ TEST_F(BackupRunTest, StoreFailureIsStoredAndWorkspaceIsCleaned) {
     EXPECT_CALL(snapshotter, snapshot(_)).WillOnce(Return(metadata));
     expectState(BackupRunState::uploading);
     EXPECT_CALL(store, put(_, _))
-        .WillOnce(
-            Return(Error::unexpected(ErrorCode::connectionFailure, "offline"))
-        );
+        .WillOnce(Return(
+            Error::unexpected(kc::ErrorCode::connectionFailure, "offline")
+        ));
     EXPECT_CALL(
         backups,
         updateRunStatus("daily", Truly([&](const BackupRunStatus& status) {

@@ -6,7 +6,7 @@ namespace anchor {
 
 class InlineExecutor : public Executor {
    public:
-    void call(MoveOnlyFunction<void()> callback) override { callback(); }
+    void call(kc::MoveOnlyFunction<void()> callback) override { callback(); }
 };
 
 }  // namespace anchor

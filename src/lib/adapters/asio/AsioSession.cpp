@@ -1,8 +1,11 @@
 #include "AsioSession.hh"
 
-#include "base/Functional.hh"
-#include "base/Log.hh"
-#include "base/String.hh"
+#include <kcore/Functional.hh>
+#include <kcore/Log.hh>
+#include <kcore/String.hh>
+
+#include "core/Core.hh"
+#include "core/Error.hh"
 #include "proto/ErrorResponse.hh"
 
 namespace anchor {
@@ -18,11 +21,11 @@ std::string extractIdent(asio::ip::tcp::socket& socket) {
 
 Error convertError(const std::error_code& ec) {
     if (ec == asio::error::eof) {
-        return Error{ErrorCode::eof, "Socket closed by peer"};
+        return Error{kc::ErrorCode::eof, "Socket closed by peer"};
     } else if (ec == asio::error::not_found) {
-        return Error{ErrorCode::bufferOverflow, "Request too long"};
+        return Error{kc::ErrorCode::bufferOverflow, "Request too long"};
     }
-    return Error{ErrorCode::connectionFailure, ec.message()};
+    return Error{kc::ErrorCode::connectionFailure, ec.message()};
 }
 
 }  // namespace
@@ -35,19 +38,21 @@ AsioSession::AsioSession(
       m_ident(extractIdent(m_socket)) {}
 
 asio::awaitable<void> AsioSession::start() {
-    log::info("{} - session started", m_ident);
-    DEFER { log::info("{} - session ended", m_ident); };
+    kc::log::info("{} - session started", m_ident);
+    KCORE_DEFER { kc::log::info("{} - session ended", m_ident); };
 
     for (;;) {
         auto req = co_await readRequest();
 
         if (not req) {
-            if (req.error().code() == ErrorCode::eof) {
-                log::info("{} - client disconnected", m_ident);
+            if (req.error().code() == kc::ErrorCode::eof) {
+                kc::log::info("{} - client disconnected", m_ident);
                 co_return;
             }
 
-            log::error("{} - error reading request - {}", m_ident, req.error());
+            kc::log::error(
+                "{} - error reading request - {}", m_ident, req.error()
+            );
             proto::ErrorResponse response{req.error()};
             co_return co_await writeResponse(response);
         }
@@ -62,8 +67,8 @@ AsioSession::readRequest() {
     auto message = co_await read();
 
     if (not message) {
-        if (message.error().code() != ErrorCode::eof) {
-            log::error(
+        if (message.error().code() != kc::ErrorCode::eof) {
+            kc::log::error(
                 "{} - error reading from socket: {}", m_ident,
                 message.error().message()
             );
@@ -71,10 +76,10 @@ AsioSession::readRequest() {
         co_return Error::unexpected(message.error());
     }
 
-    auto json = parseJson(message.value());
+    auto json = kc::parseJson(message.value());
 
     if (not json) {
-        log::error("{} - error parsing JSON", m_ident);
+        kc::log::error("{} - error parsing JSON", m_ident);
         co_return Error::unexpected(json.error());
     }
 
@@ -87,7 +92,7 @@ asio::awaitable<void> AsioSession::writeResponse(
     auto json = message.serialize().dump() + '\n';
 
     if (auto response = co_await write(json); not response) {
-        log::error(
+        kc::log::error(
             "{} - error writing response: {}", m_ident,
             response.error().message()
         );
@@ -111,7 +116,7 @@ asio::awaitable<Result<Str>> AsioSession::read() {
 
     message.pop_back();  // Remove delimiter
 
-    log::debug(
+    kc::log::debug(
         "{} - received message len={}, '{}'", m_ident, bytesRead, message
     );
     co_return message;
@@ -126,7 +131,7 @@ asio::awaitable<Result<void>> AsioSession::write(const Str& message) {
         co_return Error::unexpected(convertError(ec));
     }
 
-    log::debug(
+    kc::log::debug(
         "{} - sent message len={}, '{}'", m_ident, bytesWritten, message
     );
     co_return Result<void>{};

@@ -1,11 +1,13 @@
 #include "GetBackupsResponse.hh"
 
 #include "ErrorResponse.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 
 namespace anchor::proto {
 namespace {
 
-Result<BackupRunStatus> parseRunStatus(const Json& json) {
+Result<BackupRunStatus> parseRunStatus(const kc::Json& json) {
     auto state = backupRunStateFromString(json.at("state").get<Str>());
     if (not state) {
         return Error::unexpected(state.error());
@@ -13,7 +15,7 @@ Result<BackupRunStatus> parseRunStatus(const Json& json) {
     BackupRunStatus status{.state = *state, .uuid = json.at("uuid").get<Str>()};
     if (status.uuid.empty()) {
         return Error::unexpected(
-            ErrorCode::invalidArgument, "Run ID must not be empty"
+            kc::ErrorCode::invalidArgument, "Run ID must not be empty"
         );
     }
     if (const auto error = json.find("error");
@@ -36,11 +38,11 @@ GetBackupsResponse::GetBackupsResponse(std::span<const Backup> backups)
 GetBackupsResponse::GetBackupsResponse() : MessageImpl("GetBackupsResponse") {}
 
 Result<std::unique_ptr<GetBackupsResponse>> GetBackupsResponse::create(
-    const Json& json
+    const kc::Json& json
 ) {
     if (not json.is_array()) {
         return Error::unexpected(
-            ErrorCode::invalidArgument, "Expected an array of backups"
+            kc::ErrorCode::invalidArgument, "Expected an array of backups"
         );
     }
     try {
@@ -51,7 +53,8 @@ Result<std::unique_ptr<GetBackupsResponse>> GetBackupsResponse::create(
             backup.enabled = backupJson.at("enabled").get<bool>();
             if (backup.plan.name.empty()) {
                 return Error::unexpected(
-                    ErrorCode::invalidArgument, "Backup name must not be empty"
+                    kc::ErrorCode::invalidArgument,
+                    "Backup name must not be empty"
                 );
             }
             if (const auto run = backupJson.find("run");
@@ -65,18 +68,18 @@ Result<std::unique_ptr<GetBackupsResponse>> GetBackupsResponse::create(
             backups.push_back(std::move(backup));
         }
         return std::make_unique<GetBackupsResponse>(backups);
-    } catch (const Json::exception& error) {
+    } catch (const kc::Json::exception& error) {
         return Error::unexpected(
-            ErrorCode::invalidArgument, "Invalid backups response: {}",
+            kc::ErrorCode::invalidArgument, "Invalid backups response: {}",
             error.what()
         );
     }
 }
 
-Json GetBackupsResponse::serializeBody() const {
-    auto body = Json::array();
+kc::Json GetBackupsResponse::serializeBody() const {
+    auto body = kc::Json::array();
     for (const auto& backup : m_backups) {
-        Json backupModel;
+        kc::Json backupModel;
 
         backupModel["enabled"] = backup.enabled;
         backupModel["plan"]["name"] = backup.plan.name;

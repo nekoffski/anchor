@@ -1,4 +1,5 @@
 #include "TestSupport.hh"
+#include "core/Error.hh"
 #include "proto/AckResponse.hh"
 #include "proto/DiagnosticRequest.hh"
 #include "proto/ErrorResponse.hh"
@@ -9,6 +10,7 @@
 #include "proto/TriggerBackupRequest.hh"
 
 namespace anchor::test {
+using namespace kc;
 using namespace testing;
 
 TEST(Message, DiagnosticRoundTripRetainsDetailsAndRuntimeType) {
@@ -46,12 +48,12 @@ TEST(Message, AckRoundTripHasNullBody) {
 }
 
 TEST(Message, ErrorRoundTripRetainsCodeAndMessage) {
-    proto::ErrorResponse response{ErrorCode::fileSystemError, "disk full"};
+    proto::ErrorResponse response{kc::ErrorCode::fileSystemError, "disk full"};
     auto restored = proto::Message::create(response.serialize());
     ASSERT_TRUE(restored);
     auto* typed = (*restored)->as<proto::ErrorResponse>();
     ASSERT_NE(typed, nullptr);
-    EXPECT_EQ(typed->error().code(), ErrorCode::fileSystemError);
+    EXPECT_EQ(typed->error().code(), kc::ErrorCode::fileSystemError);
     EXPECT_EQ(typed->error().message(), "disk full");
 }
 
@@ -62,7 +64,7 @@ TEST(Message, MissingEnvelopeFieldsAndInvalidNamesReturnErrors) {
           Json{{"name", 42}, {"body", nullptr}}}) {
         auto result = proto::Message::create(json);
         ASSERT_FALSE(result) << json.dump();
-        EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+        EXPECT_EQ(result.error().code(), kc::ErrorCode::invalidArgument);
     }
     auto unknown =
         proto::Message::create(Json{{"name", "Unknown"}, {"body", nullptr}});
@@ -73,7 +75,7 @@ TEST(Message, MissingEnvelopeFieldsAndInvalidNamesReturnErrors) {
 TEST(Message, EmptyNamesAndBackupNamesAreRejected) {
     auto empty = proto::Message::create(Json{{"name", ""}, {"body", nullptr}});
     ASSERT_FALSE(empty);
-    EXPECT_EQ(empty.error().code(), ErrorCode::invalidArgument);
+    EXPECT_EQ(empty.error().code(), kc::ErrorCode::invalidArgument);
     EXPECT_FALSE(
         proto::Message::create(
             Json{{"name", "TriggerBackupRequest"}, {"body", Json{{"name", ""}}}}
@@ -88,7 +90,7 @@ TEST(Message, InvalidRequestBodiesReturnErrorsInsteadOfThrowing) {
             auto result =
                 proto::Message::create(Json{{"name", name}, {"body", body}});
             ASSERT_FALSE(result);
-            EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+            EXPECT_EQ(result.error().code(), kc::ErrorCode::invalidArgument);
         }
     }
     EXPECT_FALSE(proto::DiagnosticRequest::create(Json{}));
@@ -113,7 +115,7 @@ TEST(Message, InvalidErrorBodiesReturnErrorsInsteadOfThrowing) {
             Json{{"name", "ErrorResponse"}, {"body", body}}
         );
         ASSERT_FALSE(result) << body.dump();
-        EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+        EXPECT_EQ(result.error().code(), kc::ErrorCode::invalidArgument);
     }
 }
 
@@ -124,7 +126,7 @@ TEST(AckResponse, AcceptsOnlyNullBody) {
         SCOPED_TRACE(body.dump());
         auto result = proto::AckResponse::create(body);
         ASSERT_FALSE(result);
-        EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+        EXPECT_EQ(result.error().code(), kc::ErrorCode::invalidArgument);
         EXPECT_FALSE(
             proto::Message::create(
                 Json{{"name", "AckResponse"}, {"body", body}}
@@ -146,54 +148,70 @@ TEST(DiagnosticRequest, ValidatesDetailsIncludingEmptyStrings) {
         SCOPED_TRACE(body.dump());
         auto result = proto::DiagnosticRequest::create(body);
         ASSERT_FALSE(result);
-        EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+        EXPECT_EQ(result.error().code(), kc::ErrorCode::invalidArgument);
     }
 }
 
-TEST(ErrorResponse, AcceptsEveryDefinedErrorCodeWithStringMessage) {
-    for (int code = 0; code <= std::to_underlying(ErrorCode::alreadyRunning);
-         ++code) {
-        auto result = proto::ErrorResponse::create(
-            Json{{"code", code}, {"message", "details"}}
-        );
-        ASSERT_TRUE(result);
-        EXPECT_EQ(std::to_underlying((*result)->error().code()), code);
-        EXPECT_EQ((*result)->error().message(), "details");
-        EXPECT_EQ(
-            (*result)->serialize()["body"],
-            (Json{{"code", code}, {"message", "details"}})
-        );
+TEST(ErrorResponse, RoundTripsEveryCodeInBothCategories) {
+    for (const auto& [category, bounds] :
+         std::vector<std::pair<Str, std::pair<int, int>>>{
+             {"anchor",
+              {int(ErrorCode::invalidRequest), int(ErrorCode::alreadyRunning)}},
+             {"kcore", {0, int(kc::ErrorCode::notImplemented)}}
+         }) {
+        for (int value = bounds.first; value <= bounds.second; ++value) {
+            const Json body{
+                {"code", value}, {"category", category}, {"message", "details"}
+            };
+            auto result = proto::ErrorResponse::create(body);
+            ASSERT_TRUE(result) << body;
+            EXPECT_EQ((*result)->error().code().value(), value);
+            EXPECT_EQ((*result)->error().code().category().name(), category);
+            EXPECT_EQ((*result)->serialize()["body"], body);
+        }
     }
-    auto empty =
-        proto::ErrorResponse::create(Json{{"code", 0u}, {"message", ""}});
+    auto empty = proto::ErrorResponse::create(
+        Json{{"category", "kcore"}, {"code", 0u}, {"message", ""}}
+    );
     ASSERT_TRUE(empty);
     EXPECT_EQ((*empty)->error().message(), "");
 }
 
-TEST(ErrorResponse, RejectsMissingFieldsWrongTypesAndUndefinedErrorCodes) {
-    const std::vector<Json> bodies{
-        Json{},
-        Json::array(),
-        Json::object(),
-        Json{{"code", 1}},
-        Json{{"message", "bad"}},
-        Json{{"code", "bad"}, {"message", "bad"}},
-        Json{{"code", 1}, {"message", false}},
-        Json{{"code", -1}, {"message", "bad"}},
-        Json{
-            {"code", std::to_underlying(ErrorCode::alreadyRunning) + 1},
-            {"message", "bad"}
-        },
-        Json{{"code", 999}, {"message", "bad"}},
-        Json{{"code", 1.5}, {"message", "bad"}},
-        Json{{"code", true}, {"message", "bad"}},
-        Json{{"code", std::numeric_limits<u64>::max()}, {"message", "bad"}},
-    };
+TEST(ErrorResponse, RejectsMalformedCodesAndUnknownCategories) {
+    const Json valid{{"category", "anchor"}, {"code", 1}, {"message", "bad"}};
+    std::vector<Json> bodies{Json{}, Json::array(), Json::object()};
+    for (const auto* field : {"code", "category", "message"}) {
+        auto missing = valid;
+        missing.erase(field);
+        bodies.push_back(missing);
+    }
+    for (const Json& value :
+         {Json("bad"), Json(-1), Json(999), Json(1.5), Json(true),
+          Json(std::numeric_limits<u64>::max())}) {
+        auto invalid = valid;
+        invalid["code"] = value;
+        bodies.push_back(invalid);
+    }
+    for (const Json& value : {Json(false), Json("unknown"), Json("")}) {
+        auto invalid = valid;
+        invalid["category"] = value;
+        bodies.push_back(invalid);
+    }
+    auto invalidMessage = valid;
+    invalidMessage["message"] = false;
+    bodies.push_back(invalidMessage);
+    auto zeroAnchor = valid;
+    zeroAnchor["code"] = 0;
+    bodies.push_back(zeroAnchor);
+    auto undefinedLibrary = valid;
+    undefinedLibrary["category"] = "kcore";
+    undefinedLibrary["code"] = int(kc::ErrorCode::notImplemented) + 1;
+    bodies.push_back(undefinedLibrary);
     for (const auto& body : bodies) {
         SCOPED_TRACE(body.dump());
         auto result = proto::ErrorResponse::create(body);
         ASSERT_FALSE(result);
-        EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+        EXPECT_EQ(result.error().code(), kc::ErrorCode::invalidArgument);
     }
 }
 
@@ -207,7 +225,7 @@ TEST(TriggerBackupRequest, ValidatesNonemptyStringName) {
         SCOPED_TRACE(body.dump());
         auto result = proto::TriggerBackupRequest::create(body);
         ASSERT_FALSE(result);
-        EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+        EXPECT_EQ(result.error().code(), kc::ErrorCode::invalidArgument);
     }
 }
 
@@ -253,7 +271,8 @@ TEST(GetBackupsResponse, RoundTripRetainsEachBackupsOwnRunStateAndError) {
         };
         backup.plan.name = backupRunStateToString(state);
         if (state == BackupRunState::failed) {
-            backup.run->error = Error{ErrorCode::fileSystemError, "disk full"};
+            backup.run->error =
+                Error{kc::ErrorCode::fileSystemError, "disk full"};
         }
         backups.push_back(backup);
     }
@@ -273,7 +292,8 @@ TEST(GetBackupsResponse, RoundTripRetainsEachBackupsOwnRunStateAndError) {
     }
     ASSERT_TRUE(typed->backups().back().run->error);
     EXPECT_EQ(
-        typed->backups().back().run->error->code(), ErrorCode::fileSystemError
+        typed->backups().back().run->error->code(),
+        kc::ErrorCode::fileSystemError
     );
     EXPECT_EQ(typed->backups().back().run->error->message(), "disk full");
     EXPECT_EQ((*restored)->serialize(), serialized);
@@ -321,7 +341,7 @@ TEST(
             Json{{"name", "GetBackupsResponse"}, {"body", body}}
         );
         ASSERT_FALSE(result);
-        EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+        EXPECT_EQ(result.error().code(), kc::ErrorCode::invalidArgument);
     }
     auto withoutRun = valid;
     withoutRun["run"] = nullptr;

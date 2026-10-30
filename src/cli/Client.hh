@@ -1,11 +1,13 @@
 #pragma once
 
 #include "adapters/asio/Asio.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 #include "proto/Message.hh"
 
 namespace anchor::cli {
 
-class Client : public NonCopyable, public NonMovable {
+class Client : public kc::NonCopyable, public kc::NonMovable {
    public:
     Client() = default;
     virtual ~Client() = default;

@@ -5,13 +5,15 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <kcore/io/FileSystem.hh>
 
-#include "base/FileSystem.hh"
+#include "core/Error.hh"
 #include "core/ports/Backup.hh"
 #include "core/ports/Executor.hh"
 #include "core/ports/Snapshot.hh"
 
 namespace anchor::test {
+using namespace kc;
 
 class TemporaryDirectory : public testing::Test {
    protected:

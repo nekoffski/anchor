@@ -1,9 +1,10 @@
 #pragma once
 
-#include "base/Concepts.hh"
-#include "base/Core.hh"
-#include "base/Error.hh"
-#include "base/FileSystem.hh"
+#include <kcore/Concepts.hh>
+#include <kcore/io/FileSystem.hh>
+
+#include "core/Core.hh"
+#include "core/Error.hh"
 
 namespace anchor {
 
@@ -17,7 +18,7 @@ struct Location {
     Str path;
 
     static Location s3(const Str& path);
-    static Location local(const Path& path);
+    static Location local(const kc::Path& path);
     static Result<Location> fromStr(const Str& str);
 
     Str str() const;

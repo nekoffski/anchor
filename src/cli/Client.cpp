@@ -1,17 +1,20 @@
 #include "Client.hh"
 
+#include "core/Core.hh"
+#include "core/Error.hh"
+
 namespace anchor::cli {
 
 namespace {
 
 Error convertError(const std::error_code& ec) {
     if (ec == asio::error::eof) {
-        return Error{ErrorCode::eof, "Socket closed by peer"};
+        return Error{kc::ErrorCode::eof, "Socket closed by peer"};
     }
     if (ec == asio::error::not_found) {
-        return Error{ErrorCode::bufferOverflow, "Response too long"};
+        return Error{kc::ErrorCode::bufferOverflow, "Response too long"};
     }
-    return Error{ErrorCode::connectionFailure, ec.message()};
+    return Error{kc::ErrorCode::connectionFailure, ec.message()};
 }
 
 }  // namespace
@@ -47,7 +50,7 @@ Result<std::unique_ptr<proto::Message>> Client::receive() {
         return Error::unexpected(convertError(ec));
     }
 
-    auto json = parseJson(m_buffer.substr(0, size));
+    auto json = kc::parseJson(m_buffer.substr(0, size));
     m_buffer.erase(0, size);  // Retain subsequent frames for the next receive.
     if (not json) {
         return Error::unexpected(json.error());
@@ -59,9 +62,9 @@ Result<std::unique_ptr<proto::Message>> Client::receive() {
             return Error::unexpected(response.error());
         }
         return std::move(*response);
-    } catch (const Json::exception& error) {
+    } catch (const kc::Json::exception& error) {
         return Error::unexpected(
-            ErrorCode::serializationFailure, "Invalid response: {}",
+            kc::ErrorCode::serializationFailure, "Invalid response: {}",
             error.what()
         );
     }

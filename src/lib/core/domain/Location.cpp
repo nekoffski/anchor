@@ -1,6 +1,9 @@
 #include "Location.hh"
 
-#include "base/String.hh"
+#include <kcore/String.hh>
+
+#include "core/Core.hh"
+#include "core/Error.hh"
 
 namespace anchor {
 
@@ -11,7 +14,7 @@ Result<LocationType> locationTypeFromStr(const Str& str) {
         return LocationType::s3;
     }
     return Error::unexpected(
-        ErrorCode::invalidArgument, "Invalid location type: {}", str
+        kc::ErrorCode::invalidArgument, "Invalid location type: {}", str
     );
 }
 
@@ -27,11 +30,11 @@ Str locationTypeToStr(LocationType type) {
 
 Result<Location> Location::fromStr(const Str& str) {
     static const Str separator = "://";
-    auto parts = split(str, separator);
+    auto parts = kc::split(str, separator);
 
     if (parts.size() != 2) {
         return Error::unexpected(
-            ErrorCode::invalidArgument, "Invalid location format"
+            kc::ErrorCode::invalidArgument, "Invalid location format"
         );
     }
 
@@ -39,7 +42,8 @@ Result<Location> Location::fromStr(const Str& str) {
 
     if (not type) {
         return Error::unexpected(
-            ErrorCode::invalidArgument, "Invalid location type: {}", parts[0]
+            kc::ErrorCode::invalidArgument, "Invalid location type: {}",
+            parts[0]
         );
     }
 
@@ -50,7 +54,7 @@ Location Location::s3(const Str& path) {
     return Location{.type = LocationType::s3, .path = path};
 }
 
-Location Location::local(const Path& path) {
+Location Location::local(const kc::Path& path) {
     return Location{.type = LocationType::local, .path = path.str()};
 }
 

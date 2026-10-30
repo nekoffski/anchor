@@ -1,17 +1,19 @@
 #include "LogCapture.hh"
 #include "TestSupport.hh"
+#include "core/Error.hh"
 #include "core/domain/Backup.hh"
 #include "core/domain/Cron.hh"
 #include "core/domain/Location.hh"
 
 namespace anchor::test {
+using namespace kc;
 using namespace testing;
 using namespace std::chrono;
 using namespace std::chrono_literals;
 using CronLogTest = LogCapture;
 
 TEST_F(CronLogTest, EvaluationFailuresLogTheExpressionAndReason) {
-    DEFER { tzset(); };
+    KCORE_DEFER { tzset(); };
     ScopedEnv timezone{"TZ", "UTC0"};
     tzset();
     log::setLogLevel(log::Level::warn);
@@ -36,7 +38,7 @@ TEST(ArchiveType, RoundTripsSupportedTypesAndRejectsUnknownValues) {
     for (const auto* value : {"", "ZIP", "tar", "unknown"}) {
         auto result = archiveTypeFromStr(value);
         ASSERT_FALSE(result);
-        EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+        EXPECT_EQ(result.error().code(), kc::ErrorCode::invalidArgument);
     }
 }
 
@@ -67,12 +69,12 @@ TEST(Cron, ParsesSixFieldExpressionsAndRejectsInvalidInput) {
          {"", "invalid", "* * * * *", "60 * * * * *"}) {
         auto result = Cron::fromString(expression);
         ASSERT_FALSE(result) << expression;
-        EXPECT_EQ(result.error().code(), ErrorCode::invalidArgument);
+        EXPECT_EQ(result.error().code(), kc::ErrorCode::invalidArgument);
     }
 }
 
 TEST(Cron, MatchesOccurrencesInTheMachineTimezone) {
-    DEFER { tzset(); };
+    KCORE_DEFER { tzset(); };
     ScopedEnv timezone{"TZ", "UTC-2"};
     tzset();
     const sys_seconds midnightUtc = sys_days{2024y / January / 1};
@@ -92,7 +94,7 @@ TEST(Cron, ImpossibleCalendarDateDoesNotMatch) {
 }
 
 TEST(Cron, NextDeadlineSkipsMissingLocalTimesAndKeepsRepeatedOnes) {
-    DEFER { tzset(); };
+    KCORE_DEFER { tzset(); };
     ScopedEnv timezone{"TZ", "Europe/Warsaw"};
     tzset();
     auto expression = Cron::fromString("0 0 2 * * *");
@@ -106,7 +108,7 @@ TEST(Cron, NextDeadlineSkipsMissingLocalTimesAndKeepsRepeatedOnes) {
 }
 
 TEST(Cron, NextDeadlinePreservesLaterTimesOnTheSpringTransitionDay) {
-    DEFER { tzset(); };
+    KCORE_DEFER { tzset(); };
     ScopedEnv timezone{"TZ", "Europe/Warsaw"};
     tzset();
     auto expression = Cron::fromString("0 0 2,4 * * *");
@@ -118,7 +120,7 @@ TEST(Cron, NextDeadlinePreservesLaterTimesOnTheSpringTransitionDay) {
 }
 
 TEST(Cron, NextDeadlineIsStrictlyFutureAndImpossibleDatesHaveNoDeadline) {
-    DEFER { tzset(); };
+    KCORE_DEFER { tzset(); };
     ScopedEnv timezone{"TZ", "UTC0"};
     tzset();
     auto daily = Cron::fromString("0 0 0 * * *");
@@ -135,7 +137,7 @@ TEST(Cron, NextDeadlineIsStrictlyFutureAndImpossibleDatesHaveNoDeadline) {
 }
 
 TEST(Cron, MatchesActualLocalTimesAcrossDaylightSavingChanges) {
-    DEFER { tzset(); };
+    KCORE_DEFER { tzset(); };
     ScopedEnv timezone{"TZ", "Europe/Warsaw"};
     tzset();
     auto expression = Cron::fromString("0 0 2 * * *");
@@ -172,11 +174,11 @@ TEST(Location, RejectsMalformedAndUnknownSchemes) {
           "://path"}) {
         auto location = Location::fromStr(text);
         ASSERT_FALSE(location) << text;
-        EXPECT_EQ(location.error().code(), ErrorCode::invalidArgument);
+        EXPECT_EQ(location.error().code(), kc::ErrorCode::invalidArgument);
     }
     auto type = locationTypeFromStr("LOCAL");
     ASSERT_FALSE(type);
-    EXPECT_EQ(type.error().code(), ErrorCode::invalidArgument);
+    EXPECT_EQ(type.error().code(), kc::ErrorCode::invalidArgument);
 }
 
 }  // namespace anchor::test

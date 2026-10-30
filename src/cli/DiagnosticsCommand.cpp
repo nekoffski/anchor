@@ -1,5 +1,6 @@
 #include "DiagnosticsCommand.hh"
 
+#include "core/Error.hh"
 #include "proto/DiagnosticRequest.hh"
 
 namespace anchor::cli {

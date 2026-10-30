@@ -1,16 +1,17 @@
 #pragma once
 
-#include "base/Concepts.hh"
-#include "base/Core.hh"
-#include "base/Functional.hh"
+#include <kcore/Concepts.hh>
+#include <kcore/Functional.hh>
+
+#include "core/Core.hh"
 
 namespace anchor {
 
-class Executor : public NonMovable, public NonCopyable {
+class Executor : public kc::NonMovable, public kc::NonCopyable {
    public:
     virtual ~Executor() = default;
 
-    virtual void call(MoveOnlyFunction<void()> callback) = 0;
+    virtual void call(kc::MoveOnlyFunction<void()> callback) = 0;
 };
 
 }  // namespace anchor

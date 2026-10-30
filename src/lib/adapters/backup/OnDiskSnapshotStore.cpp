@@ -1,25 +1,29 @@
 #include "OnDiskSnapshotStore.hh"
 
+#include "core/Error.hh"
+
 namespace anchor {
 
-OnDiskSnapshotStore::OnDiskSnapshotStore(const FileSystem& fs) : m_fs(fs) {}
+OnDiskSnapshotStore::OnDiskSnapshotStore(const kc::FileSystem& fs) : m_fs(fs) {}
 
 Result<SnapshotMetadata> OnDiskSnapshotStore::put(
     const SnapshotMetadata& metadata, const Location& destination
 ) {
     if (destination.type != LocationType::local) {
         return Error::unexpected(
-            ErrorCode::invalidArgument, "Invalid destination type"
+            kc::ErrorCode::invalidArgument, "Invalid destination type"
         );
     }
 
-    const auto& from = Path{metadata.location.path}.resolveEnv();
-    const auto& to = Path::join(destination.path, metadata.name).resolveEnv();
+    const auto& from = kc::Path{metadata.location.path}.resolveEnv();
+    const auto& to =
+        kc::Path::join(destination.path, metadata.name).resolveEnv();
 
     if (auto r = m_fs.copyRecursive(from, to); not r) {
         return Error::unexpected(
-            ErrorCode::fileSystemError, "Failed to copy from '{}' to '{}' - {}",
-            from.str(), to.str(), r.error()
+            kc::ErrorCode::fileSystemError,
+            "Failed to copy from '{}' to '{}' - {}", from.str(), to.str(),
+            r.error()
         );
     }
 

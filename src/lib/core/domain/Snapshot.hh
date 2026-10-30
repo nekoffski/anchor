@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Location.hh"
-#include "base/Core.hh"
+#include "core/Core.hh"
 
 namespace anchor {
 

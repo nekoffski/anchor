@@ -2,6 +2,7 @@
 
 #include "Application.hh"
 #include "TestSupport.hh"
+#include "core/Error.hh"
 #include "proto/AckResponse.hh"
 #include "proto/DiagnosticRequest.hh"
 #include "proto/GetBackupsRequest.hh"
@@ -10,6 +11,7 @@
 #include "proto/TriggerBackupRequest.hh"
 
 namespace anchor::test {
+using namespace kc;
 using namespace testing;
 
 class MockClient : public cli::Client {
@@ -46,7 +48,7 @@ TEST_F(CliTest, ListDisplaysSortedBackupsWithActiveAndTerminalRunDetails) {
         .plan = plan(),
         .run = BackupRunStatus{
             .state = BackupRunState::failed,
-            .error = Error{ErrorCode::fileSystemError, "disk full"},
+            .error = Error{kc::ErrorCode::fileSystemError, "disk full"},
             .uuid = "failed-id"
         }
     };
@@ -164,7 +166,7 @@ TEST_F(CliTest, TransportAndDaemonErrorsHaveNonzeroExitAndNoSuccessOutput) {
     EXPECT_CALL(client, request(_, _))
         .WillOnce(Return(
             Error::unexpected(
-                ErrorCode::connectionFailure, "connection refused"
+                kc::ErrorCode::connectionFailure, "connection refused"
             )
         ));
     EXPECT_EQ(run({"anchor", "backup", "list"}), 1);

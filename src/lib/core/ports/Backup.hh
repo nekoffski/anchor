@@ -1,39 +1,43 @@
 #pragma once
 
-#include "base/Concepts.hh"
-#include "base/Core.hh"
-#include "base/Functional.hh"
+#include <kcore/Concepts.hh>
+#include <kcore/Functional.hh>
+
+#include "core/Core.hh"
+#include "core/Error.hh"
 #include "core/domain/Backup.hh"
 
 namespace anchor {
 
-class BackupPlanRepo : public NonCopyable, public NonMovable {
+class BackupPlanRepo : public kc::NonCopyable, public kc::NonMovable {
    protected:
-    using Callback = MoveOnlyFunction<void(const BackupPlan&)>;
+    using Callback = kc::MoveOnlyFunction<void(const BackupPlan&)>;
 
    public:
     virtual ~BackupPlanRepo() = default;
 
-    virtual Result<std::vector<Path>> list() const = 0;
+    virtual Result<std::vector<kc::Path>> list() const = 0;
     // Visits valid plans, returning an error if any plan could not be loaded.
     virtual Result<void> forEach(Callback c) const = 0;
 };
 
-class BackupRepo : public NonCopyable, public NonMovable {
+class BackupRepo : public kc::NonCopyable, public kc::NonMovable {
    protected:
-    using Callback = MoveOnlyFunction<void(const Backup&)>;
+    using Callback = kc::MoveOnlyFunction<void(const Backup&)>;
 
    public:
     virtual ~BackupRepo() = default;
 
-    virtual Opt<Backup> get(const Str& backupName) const = 0;
+    virtual kc::Opt<Backup> get(const Str& backupName) const = 0;
     virtual std::vector<Backup> getAll() const = 0;
 
     virtual void put(const Backup& backup) = 0;
     virtual void putPlan(const BackupPlan& plan) = 0;
     virtual void forEach(Callback c) const = 0;
 
-    virtual Opt<BackupRunStatus> getRunStatus(const Str& backupName) const = 0;
+    virtual kc::Opt<BackupRunStatus> getRunStatus(
+        const Str& backupName
+    ) const = 0;
     virtual void updateRunStatus(
         const Str& backupName, const BackupRunStatus& status
     ) = 0;

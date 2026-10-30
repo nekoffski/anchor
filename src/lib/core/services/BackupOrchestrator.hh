@@ -1,15 +1,17 @@
 #pragma once
 
+#include <kcore/Concepts.hh>
+#include <kcore/runtime/Thread.hh>
+#include <kcore/runtime/ThreadSafeQueue.hh>
+
 #include "BackupRun.hh"
-#include "base/Concepts.hh"
-#include "base/Core.hh"
-#include "base/runtime/Thread.hh"
-#include "base/runtime/ThreadSafeQueue.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 #include "core/ports/Executor.hh"
 
 namespace anchor {
 
-class BackupOrchestrator : public Thread {
+class BackupOrchestrator : public kc::Thread {
    public:
     explicit BackupOrchestrator(BackupRepo& repo, Executor& executor);
     ~BackupOrchestrator() override;
@@ -24,7 +26,7 @@ class BackupOrchestrator : public Thread {
 
     BackupRepo& m_repo;
     Executor& m_executor;
-    ThreadSafeQueue<std::unique_ptr<BackupRun>> m_queue;
+    kc::ThreadSafeQueue<std::unique_ptr<BackupRun>> m_queue;
 };
 
 }  // namespace anchor

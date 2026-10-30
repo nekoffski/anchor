@@ -3,6 +3,7 @@
 #include "core/services/BackupScheduler.hh"
 
 namespace anchor::test {
+using namespace kc;
 using namespace testing;
 using namespace std::chrono;
 using namespace std::chrono_literals;
@@ -256,7 +257,7 @@ TEST(BackupScheduler, EmptyQueueSleepsUntilAScheduleIsAdded) {
 }
 
 TEST_F(BackupSchedulerTest, DailyScheduleContinuesAcrossSpringClockChange) {
-    DEFER { tzset(); };
+    KCORE_DEFER { tzset(); };
     ScopedEnv timezone{"TZ", "Europe/Warsaw"};
     tzset();
     auto backup = backups.get("daily").value();

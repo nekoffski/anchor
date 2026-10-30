@@ -1,7 +1,9 @@
 #include "TestSupport.hh"
 #include "adapters/backup/InMemoryBackupRepo.hh"
+#include "core/Error.hh"
 
 namespace anchor::test {
+using namespace kc;
 using namespace testing;
 
 TEST(InMemoryBackupRepo, StoresReplacesAndReturnsIndependentCopies) {
@@ -73,18 +75,19 @@ TEST(InMemoryBackupRepo, UpdatesAndClearsRunStatusWithoutChangingBackup) {
     repo.put(backup);
     EXPECT_FALSE(repo.getRunStatus("daily"));
     repo.updateRunStatus(
-        "daily", BackupRunStatus{
-                     .state = BackupRunState::failed,
-                     .error = Error{ErrorCode::fileSystemError, "disk full"},
-                     .uuid = "run-id"
-                 }
+        "daily",
+        BackupRunStatus{
+            .state = BackupRunState::failed,
+            .error = Error{kc::ErrorCode::fileSystemError, "disk full"},
+            .uuid = "run-id"
+        }
     );
     auto failed = repo.getRunStatus("daily");
     ASSERT_TRUE(failed);
     EXPECT_EQ(failed->state, BackupRunState::failed);
     EXPECT_EQ(failed->uuid, "run-id");
     ASSERT_TRUE(failed->error);
-    EXPECT_EQ(failed->error->code(), ErrorCode::fileSystemError);
+    EXPECT_EQ(failed->error->code(), kc::ErrorCode::fileSystemError);
     EXPECT_EQ(failed->error->message(), "disk full");
     failed->error.reset();
     EXPECT_TRUE(repo.getRunStatus("daily")->error);

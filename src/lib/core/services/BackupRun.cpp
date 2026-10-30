@@ -1,8 +1,11 @@
 #include "BackupRun.hh"
 
+#include <kcore/Functional.hh>
+#include <kcore/Random.hh>
+
 #include "SourceTreeBuilder.hh"
-#include "base/Functional.hh"
-#include "base/Random.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 
 namespace anchor {
 
@@ -12,7 +15,7 @@ BackupRun::BackupRun(const BackupRunArgs& args)
       m_snapshotter(args.snapshotter),
       m_snapshotStore(args.snapshotStore),
       m_fs(args.fs),
-      m_workspace(Path::join(args.workspace, uuid())) {}
+      m_workspace(kc::Path::join(args.workspace, uuid())) {}
 
 Str newSnapshotName(const Str& backupName) {
     const auto ts = std::chrono::system_clock::now();
@@ -24,14 +27,15 @@ void BackupRun::start() {
 
     if (not m_fs.createDirectory(m_workspace)) {
         fail(
-            ErrorCode::fileSystemError, "Failed to create workspace directory"
+            kc::ErrorCode::fileSystemError,
+            "Failed to create workspace directory"
         );
         return;
     }
-    DEFER {
-        log::debug("Cleaning up workspace: {}", m_workspace.str());
+    KCORE_DEFER {
+        kc::log::debug("Cleaning up workspace: {}", m_workspace.str());
         if (auto res = m_fs.removeAll(m_workspace); not res) {
-            log::error(
+            kc::log::error(
                 "Failed to remove workspace: {} - {}", m_workspace.str(),
                 res.error().message()
             );
@@ -68,12 +72,12 @@ void BackupRun::start() {
     update(BackupRunState::completed);
 }
 
-void BackupRun::fail(ErrorCode code, const Str& reason) {
+void BackupRun::fail(std::error_code code, const Str& reason) {
     fail(Error{code, reason});
 }
 
 void BackupRun::fail(const Error& error) {
-    log::error("Backup run failed: {}", error);
+    kc::log::error("Backup run failed: {}", error);
 
     BackupRunStatus status{
         .state = BackupRunState::failed,

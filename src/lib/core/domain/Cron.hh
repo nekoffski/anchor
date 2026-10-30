@@ -4,8 +4,8 @@
 
 #include <chrono>
 
-#include "base/Core.hh"
-#include "base/Error.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 
 namespace anchor {
 
@@ -13,7 +13,7 @@ class Cron {
    public:
     static Result<Cron> fromString(const Str& cron);
     bool matches(std::chrono::sys_seconds time) const;
-    Opt<std::chrono::sys_seconds> nextAfter(
+    kc::Opt<std::chrono::sys_seconds> nextAfter(
         std::chrono::sys_seconds time
     ) const;
 

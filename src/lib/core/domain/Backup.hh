@@ -2,12 +2,14 @@
 
 #include <fmt/core.h>
 
+#include <kcore/Concepts.hh>
+#include <kcore/io/FileSystem.hh>
+
 #include "Cron.hh"
 #include "Location.hh"
 #include "Source.hh"
-#include "base/Concepts.hh"
-#include "base/Core.hh"
-#include "base/FileSystem.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 
 namespace anchor {
 
@@ -21,7 +23,7 @@ struct BackupPlan {
     ArchiveType archiveType;
     Location destination;
     std::vector<Source> sources;
-    Opt<Cron> cron;
+    kc::Opt<Cron> cron;
 };
 
 enum class BackupRunState {
@@ -38,14 +40,14 @@ bool isActive(BackupRunState state);
 
 struct BackupRunStatus {
     BackupRunState state;
-    Opt<Error> error;
+    kc::Opt<Error> error;
     Uuid uuid;
 };
 
 struct Backup {
     BackupPlan plan;
     bool enabled{true};
-    Opt<BackupRunStatus> run;
+    kc::Opt<BackupRunStatus> run;
     // snapshots etc..
 };
 

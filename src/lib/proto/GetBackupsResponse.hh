@@ -3,6 +3,7 @@
 #include <span>
 
 #include "Message.hh"
+#include "core/Error.hh"
 #include "core/domain/Backup.hh"
 
 namespace anchor::proto {
@@ -12,12 +13,14 @@ class GetBackupsResponse : public MessageImpl<GetBackupsResponse> {
     explicit GetBackupsResponse(std::span<const Backup>);
     explicit GetBackupsResponse();
 
-    static Result<std::unique_ptr<GetBackupsResponse>> create(const Json& body);
+    static Result<std::unique_ptr<GetBackupsResponse>> create(
+        const kc::Json& body
+    );
 
     const std::vector<Backup>& backups() const { return m_backups; }
 
    private:
-    Json serializeBody() const override;
+    kc::Json serializeBody() const override;
 
     std::vector<Backup> m_backups;
 };

@@ -2,6 +2,7 @@
 #include "core/services/SourceTreeBuilder.hh"
 
 namespace anchor::test {
+using namespace kc;
 using namespace testing;
 using SourceTreeBuilderTest = TemporaryDirectory;
 

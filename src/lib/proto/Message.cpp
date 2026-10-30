@@ -7,21 +7,23 @@
 #include "GetBackupsResponse.hh"
 #include "ReloadPlansRequest.hh"
 #include "TriggerBackupRequest.hh"
+#include "core/Core.hh"
+#include "core/Error.hh"
 
 namespace anchor::proto {
 
-Result<std::unique_ptr<Message>> Message::create(const Json& json) {
+Result<std::unique_ptr<Message>> Message::create(const kc::Json& json) {
     if (not json.is_object() or not json.contains("name") or
         not json["name"].is_string() or
         json["name"].get_ref<const Str&>().empty()) {
         return Error::unexpected(
-            ErrorCode::invalidArgument, "Missing message name"
+            kc::ErrorCode::invalidArgument, "Missing message name"
         );
     }
 
     if (not json.contains("body")) {
         return Error::unexpected(
-            ErrorCode::invalidArgument, "Missing message body"
+            kc::ErrorCode::invalidArgument, "Missing message body"
         );
     }
 
@@ -46,8 +48,8 @@ Result<std::unique_ptr<Message>> Message::create(const Json& json) {
     return Error::unexpected(ErrorCode::invalidRequest, "Unknown message name");
 }
 
-Json Message::serialize() const {
-    Json json;
+kc::Json Message::serialize() const {
+    kc::Json json;
     json["name"] = name();
     json["body"] = serializeBody();
     return json;

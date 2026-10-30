@@ -1,6 +1,8 @@
 #include "AsioController.hh"
 
-#include "base/Functional.hh"
+#include <kcore/Functional.hh>
+
+#include "core/Error.hh"
 #include "proto/AckResponse.hh"
 #include "proto/DiagnosticRequest.hh"
 #include "proto/ErrorResponse.hh"
@@ -32,7 +34,7 @@ using ResponsePtr = std::unique_ptr<proto::Message>;
 
 ResponsePtr translateResponse(const Response& request) {
     return std::visit(
-        Overloader{
+        kc::Overloader{
             [](const AckResponse&) -> ResponsePtr {
                 return std::make_unique<proto::AckResponse>();
             },

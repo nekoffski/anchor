@@ -10,8 +10,9 @@ MAX_FRAME_BYTES = 32 * 1024
 class DaemonError(RuntimeError):
     def __init__(self, body: dict[str, Any]):
         self.code = body["code"]
+        self.category = body["category"]
         self.message = body["message"]
-        super().__init__(f"Daemon error {self.code}: {self.message}")
+        super().__init__(f"Daemon error {self.category}:{self.code}: {self.message}")
 
 
 class DaemonClient:

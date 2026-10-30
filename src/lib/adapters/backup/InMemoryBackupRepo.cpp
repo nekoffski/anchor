@@ -1,8 +1,10 @@
 #include "InMemoryBackupRepo.hh"
 
+#include "core/Core.hh"
+
 namespace anchor {
 
-Opt<Backup> InMemoryBackupRepo::get(const Str& backupName) const {
+kc::Opt<Backup> InMemoryBackupRepo::get(const Str& backupName) const {
     std::shared_lock lk{m_mutex};
     if (auto it = m_backups.find(backupName); it != m_backups.end()) {
         return it->second;
@@ -33,7 +35,7 @@ void InMemoryBackupRepo::forEach(Callback c) const {
     }
 }
 
-Opt<BackupRunStatus> InMemoryBackupRepo::getRunStatus(
+kc::Opt<BackupRunStatus> InMemoryBackupRepo::getRunStatus(
     const Str& backupName
 ) const {
     std::shared_lock lk{m_mutex};

@@ -1,9 +1,11 @@
 #include "TestSupport.hh"
 #include "adapters/backup/InMemoryBackupRepo.hh"
 #include "adapters/executors/InlineExecutor.hh"
+#include "core/Error.hh"
 #include "core/services/BackupOrchestrator.hh"
 
 namespace anchor::test {
+using namespace kc;
 using namespace testing;
 
 TEST(BackupOrchestrator, RejectedEnqueuePreservesPreviousResultOrEmptyStatus) {
@@ -23,11 +25,12 @@ TEST(BackupOrchestrator, RejectedEnqueuePreservesPreviousResultOrEmptyStatus) {
     EXPECT_FALSE(rejected);
     EXPECT_FALSE(backups.getRunStatus("daily"));
     backups.updateRunStatus(
-        "daily", BackupRunStatus{
-                     .state = BackupRunState::failed,
-                     .error = Error{ErrorCode::fileSystemError, "disk full"},
-                     .uuid = "previous"
-                 }
+        "daily",
+        BackupRunStatus{
+            .state = BackupRunState::failed,
+            .error = Error{kc::ErrorCode::fileSystemError, "disk full"},
+            .uuid = "previous"
+        }
     );
     rejected = orchestrator.enqueueBackup(
         {backup, backups, snapshotter, store, fs, workspace}
@@ -72,7 +75,7 @@ TEST(BackupOrchestrator, CloseDrainsQueuedRunsInOrderAndRetainsResults) {
                 backups.getRunStatus("second")->state, BackupRunState::queued
             );
             return Error::unexpected(
-                ErrorCode::fileSystemError, "first failed"
+                kc::ErrorCode::fileSystemError, "first failed"
             );
         }));
     EXPECT_CALL(fs, createDirectory(_))
@@ -82,7 +85,7 @@ TEST(BackupOrchestrator, CloseDrainsQueuedRunsInOrderAndRetainsResults) {
                 backups.getRunStatus("daily")->state, BackupRunState::failed
             );
             return Error::unexpected(
-                ErrorCode::fileSystemError, "second failed"
+                kc::ErrorCode::fileSystemError, "second failed"
             );
         }));
     orchestrator.stop();
