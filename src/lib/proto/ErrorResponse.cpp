@@ -35,10 +35,12 @@ Result<std::unique_ptr<ErrorResponse>> ErrorResponse::create(
     const auto category = body["category"].get<Str>();
     std::error_code code;
     if (category == "anchor" and value >= int(ErrorCode::invalidRequest) and
-        value <= int(ErrorCode::alreadyRunning)) {
+        value <= int(ErrorCode::notImplemented)) {
         code = static_cast<ErrorCode>(value);
     } else if (
-        category == "kcore" and value <= int(kc::ErrorCode::notImplemented)
+        category == "kcore" and (value == int(kc::ErrorCode::noError) or
+                                 (value >= int(kc::ErrorCode::queueClosed) and
+                                  value <= int(kc::ErrorCode::fileNotFound)))
     ) {
         code = static_cast<kc::ErrorCode>(value);
     } else {

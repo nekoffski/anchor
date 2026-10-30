@@ -156,10 +156,14 @@ TEST(ErrorResponse, RoundTripsEveryCodeInBothCategories) {
     for (const auto& [category, bounds] :
          std::vector<std::pair<Str, std::pair<int, int>>>{
              {"anchor",
-              {int(ErrorCode::invalidRequest), int(ErrorCode::alreadyRunning)}},
-             {"kcore", {0, int(kc::ErrorCode::notImplemented)}}
+              {int(ErrorCode::invalidRequest), int(ErrorCode::notImplemented)}},
+             {"kcore", {0, int(kc::ErrorCode::fileNotFound)}}
          }) {
         for (int value = bounds.first; value <= bounds.second; ++value) {
+            if (category == "kcore" and value > int(kc::ErrorCode::noError) and
+                value < int(kc::ErrorCode::queueClosed)) {
+                continue;
+            }
             const Json body{
                 {"code", value}, {"category", category}, {"message", "details"}
             };
@@ -205,12 +209,23 @@ TEST(ErrorResponse, RejectsMalformedCodesAndUnknownCategories) {
     bodies.push_back(zeroAnchor);
     auto undefinedLibrary = valid;
     undefinedLibrary["category"] = "kcore";
-    undefinedLibrary["code"] = int(kc::ErrorCode::notImplemented) + 1;
+    undefinedLibrary["code"] = int(kc::ErrorCode::fileNotFound) + 1;
     bodies.push_back(undefinedLibrary);
     for (const auto& body : bodies) {
         SCOPED_TRACE(body.dump());
         auto result = proto::ErrorResponse::create(body);
         ASSERT_FALSE(result);
+        EXPECT_EQ(result.error().code(), kc::ErrorCode::invalidArgument);
+    }
+}
+
+TEST(ErrorResponse, RejectsRemovedLibraryCodes) {
+    for (int value : {1, 2, 10, 11, 12, 13, 14, 15}) {
+        const Json body{
+            {"category", "kcore"}, {"code", value}, {"message", "removed"}
+        };
+        auto result = proto::ErrorResponse::create(body);
+        ASSERT_FALSE(result) << value;
         EXPECT_EQ(result.error().code(), kc::ErrorCode::invalidArgument);
     }
 }

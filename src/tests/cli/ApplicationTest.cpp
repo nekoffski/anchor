@@ -166,7 +166,7 @@ TEST_F(CliTest, TransportAndDaemonErrorsHaveNonzeroExitAndNoSuccessOutput) {
     EXPECT_CALL(client, request(_, _))
         .WillOnce(Return(
             Error::unexpected(
-                kc::ErrorCode::connectionFailure, "connection refused"
+                ErrorCode::connectionFailure, "connection refused"
             )
         ));
     EXPECT_EQ(run({"anchor", "backup", "list"}), 1);

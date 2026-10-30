@@ -21,11 +21,11 @@ std::string extractIdent(asio::ip::tcp::socket& socket) {
 
 Error convertError(const std::error_code& ec) {
     if (ec == asio::error::eof) {
-        return Error{kc::ErrorCode::eof, "Socket closed by peer"};
+        return Error{ErrorCode::eof, "Socket closed by peer"};
     } else if (ec == asio::error::not_found) {
-        return Error{kc::ErrorCode::bufferOverflow, "Request too long"};
+        return Error{ErrorCode::bufferOverflow, "Request too long"};
     }
-    return Error{kc::ErrorCode::connectionFailure, ec.message()};
+    return Error{ErrorCode::connectionFailure, ec.message()};
 }
 
 }  // namespace
@@ -45,7 +45,7 @@ asio::awaitable<void> AsioSession::start() {
         auto req = co_await readRequest();
 
         if (not req) {
-            if (req.error().code() == kc::ErrorCode::eof) {
+            if (req.error().code() == ErrorCode::eof) {
                 kc::log::info("{} - client disconnected", m_ident);
                 co_return;
             }
@@ -67,7 +67,7 @@ AsioSession::readRequest() {
     auto message = co_await read();
 
     if (not message) {
-        if (message.error().code() != kc::ErrorCode::eof) {
+        if (message.error().code() != ErrorCode::eof) {
             kc::log::error(
                 "{} - error reading from socket: {}", m_ident,
                 message.error().message()

@@ -16,6 +16,22 @@ class ErrorCategory final : public std::error_category {
                 return "Unknown request";
             case ErrorCode::alreadyRunning:
                 return "Already running";
+            case ErrorCode::internalError:
+                return "Internal error";
+            case ErrorCode::queueError:
+                return "Queue error";
+            case ErrorCode::eof:
+                return "End of file";
+            case ErrorCode::connectionFailure:
+                return "Connection failure";
+            case ErrorCode::transientNetworkError:
+                return "Transient network error";
+            case ErrorCode::bufferOverflow:
+                return "Buffer overflow";
+            case ErrorCode::serializationFailure:
+                return "Serialization failure";
+            case ErrorCode::notImplemented:
+                return "Not implemented";
         }
         return "Unknown Anchor error";
     }

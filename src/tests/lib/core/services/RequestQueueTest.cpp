@@ -23,7 +23,7 @@ TEST(RequestQueue, SendsReceivesAndRejectsRequestsAfterClosing) {
     queue.close();
     auto rejected = sender.send(DiagnosticRequest{"details"});
     ASSERT_FALSE(rejected);
-    EXPECT_EQ(rejected.error().code(), kc::ErrorCode::queueError);
+    EXPECT_EQ(rejected.error().code(), ErrorCode::queueError);
     EXPECT_FALSE(queue.tryPop());
 }
 

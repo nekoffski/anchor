@@ -167,9 +167,9 @@ TEST_F(BackupRunTest, StoreFailureIsStoredAndWorkspaceIsCleaned) {
     EXPECT_CALL(snapshotter, snapshot(_)).WillOnce(Return(metadata));
     expectState(BackupRunState::uploading);
     EXPECT_CALL(store, put(_, _))
-        .WillOnce(Return(
-            Error::unexpected(kc::ErrorCode::connectionFailure, "offline")
-        ));
+        .WillOnce(
+            Return(Error::unexpected(ErrorCode::connectionFailure, "offline"))
+        );
     EXPECT_CALL(
         backups,
         updateRunStatus("daily", Truly([&](const BackupRunStatus& status) {

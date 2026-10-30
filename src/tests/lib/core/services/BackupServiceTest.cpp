@@ -299,7 +299,7 @@ TEST_F(BackupServiceTest, ShutdownDrainsRequestsAndQueuedBackupWork) {
     EXPECT_EQ(status->state, BackupRunState::completed);
     auto rejected = sender.send(GetBackupsRequest{});
     ASSERT_FALSE(rejected);
-    EXPECT_EQ(rejected.error().code(), kc::ErrorCode::queueError);
+    EXPECT_EQ(rejected.error().code(), ErrorCode::queueError);
 }
 
 TEST_F(BackupServiceTest, AcceptedRunKeepsItsPlanSnapshot) {

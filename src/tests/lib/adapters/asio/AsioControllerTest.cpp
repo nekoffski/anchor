@@ -57,7 +57,7 @@ TEST(AsioController, ClosedQueueReturnsQueueErrorForBothRequests) {
     for (const auto* response : {diagnostic.get(), backup.get()}) {
         auto* error = response->as<proto::ErrorResponse>();
         ASSERT_NE(error, nullptr);
-        EXPECT_EQ(error->error().code(), kc::ErrorCode::queueError);
+        EXPECT_EQ(error->error().code(), ErrorCode::queueError);
     }
     EXPECT_FALSE(queue.tryPop());
 }

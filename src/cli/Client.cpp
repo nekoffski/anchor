@@ -9,12 +9,12 @@ namespace {
 
 Error convertError(const std::error_code& ec) {
     if (ec == asio::error::eof) {
-        return Error{kc::ErrorCode::eof, "Socket closed by peer"};
+        return Error{ErrorCode::eof, "Socket closed by peer"};
     }
     if (ec == asio::error::not_found) {
-        return Error{kc::ErrorCode::bufferOverflow, "Response too long"};
+        return Error{ErrorCode::bufferOverflow, "Response too long"};
     }
-    return Error{kc::ErrorCode::connectionFailure, ec.message()};
+    return Error{ErrorCode::connectionFailure, ec.message()};
 }
 
 }  // namespace
@@ -64,7 +64,7 @@ Result<std::unique_ptr<proto::Message>> Client::receive() {
         return std::move(*response);
     } catch (const kc::Json::exception& error) {
         return Error::unexpected(
-            kc::ErrorCode::serializationFailure, "Invalid response: {}",
+            ErrorCode::serializationFailure, "Invalid response: {}",
             error.what()
         );
     }

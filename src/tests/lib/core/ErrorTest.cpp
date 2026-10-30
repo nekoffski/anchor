@@ -25,19 +25,19 @@ TEST(ProjectError, SharesResultTypeAndPropagatesLibraryErrors) {
 }
 
 TEST(ProjectError, DistinguishesEqualNumericCodesAndFormatsBothCategories) {
-    const Error project{ErrorCode::invalidRequest, "Bad request"};
-    const Error library{kc::ErrorCode::internalError, "Library failure"};
+    const Error project{ErrorCode::unknownRequest, "Bad request"};
+    const Error library{kc::ErrorCode::queueClosed, "Library failure"};
     EXPECT_EQ(project.code().value(), library.code().value());
     EXPECT_NE(project.code(), library.code());
-    EXPECT_EQ(project.code(), ErrorCode::invalidRequest);
-    EXPECT_EQ(library.code(), kc::ErrorCode::internalError);
+    EXPECT_EQ(project.code(), ErrorCode::unknownRequest);
+    EXPECT_EQ(library.code(), kc::ErrorCode::queueClosed);
     EXPECT_EQ(&project.code().category(), &errorCategory());
     EXPECT_EQ(&library.code().category(), &kc::errorCategory());
     EXPECT_EQ(
-        fmt::format("{}", project), "code: anchor:1, details: 'Bad request'"
+        fmt::format("{}", project), "code: anchor:3, details: 'Bad request'"
     );
     EXPECT_EQ(
-        fmt::format("{}", library), "code: kcore:1, details: 'Library failure'"
+        fmt::format("{}", library), "code: kcore:3, details: 'Library failure'"
     );
 }
 

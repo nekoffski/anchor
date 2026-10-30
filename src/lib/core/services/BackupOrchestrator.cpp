@@ -32,7 +32,7 @@ Result<Uuid> BackupOrchestrator::enqueueBackup(BackupRunArgs&& args) {
             m_repo.clearRunStatus(name);
         }
         return Error::unexpected(
-            kc::ErrorCode::internalError, "Failed to enqueue backup"
+            ErrorCode::internalError, "Failed to enqueue backup"
         );
     }
 

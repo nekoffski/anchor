@@ -10,7 +10,7 @@ Result<std::future<Response>> RequestSender::send(Request&& req) {
 
     if (not m_q.push(std::move(wrapper))) {
         return Error::unexpected(
-            kc::ErrorCode::queueError, "Failed to push request to queue"
+            ErrorCode::queueError, "Failed to push request to queue"
         );
     }
 
