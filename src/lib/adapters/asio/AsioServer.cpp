@@ -10,6 +10,11 @@ AsioServer::AsioServer(const Config& cfg, AsioController& controller)
       m_controller(controller),
       m_acceptor(m_io, {asio::ip::tcp::v4(), cfg.api.port}) {}
 
+AsioServer::~AsioServer() {
+    stop();
+    join();
+}
+
 void AsioServer::run() {
     asio::co_spawn(
         m_io,

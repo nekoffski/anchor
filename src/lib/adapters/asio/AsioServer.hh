@@ -11,6 +11,7 @@ namespace anchor {
 class AsioServer : public kc::Thread {
    public:
     explicit AsioServer(const Config& cfg, AsioController& controller);
+    ~AsioServer() override;
     void stop();
 
    private:
