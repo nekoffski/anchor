@@ -11,6 +11,7 @@
 #include "adapters/backup/OnDiskBackupPlanRepo.hh"
 #include "adapters/backup/OnDiskSnapshotStore.hh"
 #include "adapters/executors/InlineExecutor.hh"
+#include "adapters/executors/ThreadPoolExecutor.hh"
 #include "core/services/BackupService.hh"
 
 using namespace anchor;
@@ -53,7 +54,9 @@ int main(int argc, const char** argv) {
 
     InMemoryBackupRepo backupRepo;
 
-    InlineExecutor executor;
+    kc::ThreadPool threadPool{cfg.system.backendConcurrency};
+    ThreadPoolExecutor executor{threadPool};
+
     Ports ports{
         backupRepo, backupPlanRepo, snapshotters, snapshotStores, executor
     };

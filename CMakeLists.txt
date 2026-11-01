@@ -29,6 +29,8 @@ endif()
 
 include(CTest)
 option(KCORE_BUILD_TESTS "Build kcore tests" ${BUILD_TESTING})
+option(KCORE_BUILD_SANDBOX "Build kcore sandbox" ON)
+
 add_subdirectory(external/kcore)
 add_subdirectory(src/lib)
 add_subdirectory(src/daemon)

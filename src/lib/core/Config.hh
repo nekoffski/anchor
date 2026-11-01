@@ -22,11 +22,16 @@ struct Config {
         kc::Path backupPlans;
     };
 
+    struct System {
+        u16 backendConcurrency{4};
+    };
+
     static Result<Config> load(const kc::Path& path);
 
     Log log;
     Api api;
     Paths paths;
+    System system;
 };
 
 }  // namespace anchor
