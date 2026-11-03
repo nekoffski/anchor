@@ -38,6 +38,11 @@ run containing a state, UUID, and optional error. Empty lists serialize as an
 empty array. The decoder validates these fields and returns errors for malformed
 responses.
 
+[`ErrorResponse`](../src/lib/proto/ErrorResponse.cpp) carries the error category,
+numeric code, and message. Its decoder accepts Anchor errors and kcore's defined
+codes, including `threadPoolClosed`; reserved kcore codes 1 and 2 and unknown codes
+remain invalid. Encoding and decoding preserve the category and message.
+
 CLI unit tests inject a client and output streams to exercise parsing, dispatch,
 response validation, rendering, and exit codes without opening sockets. Protocol,
 controller, and service tests cover the corresponding daemon request flow.

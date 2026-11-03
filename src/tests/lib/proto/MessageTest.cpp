@@ -57,6 +57,21 @@ TEST(Message, ErrorRoundTripRetainsCodeAndMessage) {
     EXPECT_EQ(typed->error().message(), "disk full");
 }
 
+TEST(Message, ThreadPoolClosedErrorRoundTripsWithItsLibraryCategory) {
+    const proto::ErrorResponse response{
+        kc::ErrorCode::threadPoolClosed, "Thread pool is closed"
+    };
+    const auto restored = proto::Message::create(response.serialize());
+    ASSERT_TRUE(restored);
+    const auto* typed = (*restored)->as<proto::ErrorResponse>();
+    ASSERT_NE(typed, nullptr);
+    EXPECT_EQ(typed->error().code(), kc::ErrorCode::threadPoolClosed);
+    EXPECT_EQ(&typed->error().code().category(), &kc::errorCategory());
+    EXPECT_EQ(typed->error().code().message(), "Thread pool closed");
+    EXPECT_EQ(typed->error().message(), "Thread pool is closed");
+    EXPECT_EQ((*restored)->serialize(), response.serialize());
+}
+
 TEST(Message, MissingEnvelopeFieldsAndInvalidNamesReturnErrors) {
     for (const auto& json :
          {Json{}, Json::array(), Json{"scalar"}, Json{{"body", nullptr}},
@@ -157,7 +172,7 @@ TEST(ErrorResponse, RoundTripsEveryCodeInBothCategories) {
          std::vector<std::pair<Str, std::pair<int, int>>>{
              {"anchor",
               {int(ErrorCode::invalidRequest), int(ErrorCode::notImplemented)}},
-             {"kcore", {0, int(kc::ErrorCode::fileNotFound)}}
+             {"kcore", {0, int(kc::ErrorCode::threadPoolClosed)}}
          }) {
         for (int value = bounds.first; value <= bounds.second; ++value) {
             if (category == "kcore" and value > int(kc::ErrorCode::noError) and
@@ -209,7 +224,7 @@ TEST(ErrorResponse, RejectsMalformedCodesAndUnknownCategories) {
     bodies.push_back(zeroAnchor);
     auto undefinedLibrary = valid;
     undefinedLibrary["category"] = "kcore";
-    undefinedLibrary["code"] = int(kc::ErrorCode::fileNotFound) + 1;
+    undefinedLibrary["code"] = int(kc::ErrorCode::threadPoolClosed) + 1;
     bodies.push_back(undefinedLibrary);
     for (const auto& body : bodies) {
         SCOPED_TRACE(body.dump());
@@ -220,7 +235,7 @@ TEST(ErrorResponse, RejectsMalformedCodesAndUnknownCategories) {
 }
 
 TEST(ErrorResponse, RejectsRemovedLibraryCodes) {
-    for (int value : {1, 2, 10, 11, 12, 13, 14, 15}) {
+    for (int value : {1, 2, 11, 12, 13, 14, 15}) {
         const Json body{
             {"category", "kcore"}, {"code", value}, {"message", "removed"}
         };

@@ -38,9 +38,10 @@ Result<std::unique_ptr<ErrorResponse>> ErrorResponse::create(
         value <= int(ErrorCode::notImplemented)) {
         code = static_cast<ErrorCode>(value);
     } else if (
-        category == "kcore" and (value == int(kc::ErrorCode::noError) or
-                                 (value >= int(kc::ErrorCode::queueClosed) and
-                                  value <= int(kc::ErrorCode::fileNotFound)))
+        category == "kcore" and
+        (value == int(kc::ErrorCode::noError) or
+         (value >= int(kc::ErrorCode::queueClosed) and
+          value <= int(kc::ErrorCode::threadPoolClosed)))
     ) {
         code = static_cast<kc::ErrorCode>(value);
     } else {
