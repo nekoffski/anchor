@@ -19,6 +19,9 @@ add_library(anchor STATIC
     "adapters/backup/OnDiskBackupPlanRepo.cpp"
     "adapters/backup/OnDiskSnapshotStore.cpp"
     "adapters/backup/ArchiveSnapshotter.cpp"
+    "adapters/backup/SnapshotBuilder.cpp"
+    "adapters/backup/SnapshotManifestJson.cpp"
+    "adapters/crypto/Sha256.cpp"
     # -- core
     "core/services/BackupService.cpp"
     "core/services/BackupScheduler.cpp"
@@ -40,6 +43,7 @@ target_include_directories(anchor
 
 find_package(asio CONFIG REQUIRED)
 find_package(LibArchive CONFIG REQUIRED)
+find_package(OpenSSL CONFIG REQUIRED)
 find_package(croncpp CONFIG REQUIRED)
 
 target_link_libraries(anchor
@@ -48,4 +52,6 @@ target_link_libraries(anchor
         asio::asio
         LibArchive::LibArchive
         croncpp::croncpp
+    PRIVATE
+        OpenSSL::Crypto
 )

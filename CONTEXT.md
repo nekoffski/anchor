@@ -21,5 +21,11 @@ A time matching a backup's automatic schedule. It requests a run only while auto
 A backup whose automatic schedule is allowed to request runs. Disabling automatic execution does not prevent an explicit manual run.
 
 **Snapshot**:
-The output produced by a backup run from its selected source files and directories.
+The output produced by a backup run, containing its captured source files and directories together with a snapshot manifest.
 _Avoid_: Backup run
+
+**Snapshot manifest**:
+An inventory of one snapshot's contents and their source origins, including file content hashes, for verification and restoration.
+
+**Source**:
+A filesystem root and the selections of files and directories to capture relative to that root.

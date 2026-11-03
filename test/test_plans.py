@@ -51,7 +51,7 @@ def test_reload_updates_the_plan_used_by_the_next_run(
     assert len(workspace.snapshots("daily")) == 1
     snapshots = workspace.snapshots("daily", destination=new_destination)
     assert len(snapshots) == 1
-    assert_snapshot_files(snapshots[0], {"notes.txt": b"updated plan"})
+    assert_snapshot_files(snapshots[0], {"0/notes.txt": b"updated plan"})
     workspace.assert_runs_cleaned()
 
 

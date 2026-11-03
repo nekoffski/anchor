@@ -15,5 +15,5 @@ def test_reloading_a_schedule_runs_the_backup_without_a_manual_trigger(
 
     snapshots = workspace.snapshots("scheduled")
     assert snapshots, "The scheduler did not produce a snapshot"
-    assert_snapshot_files(snapshots[-1], {"notes.txt": b"scheduled content"})
+    assert_snapshot_files(snapshots[-1], {"0/notes.txt": b"scheduled content"})
     workspace.assert_runs_cleaned()

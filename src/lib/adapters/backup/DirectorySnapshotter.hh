@@ -15,13 +15,6 @@ class DirectorySnapshotter : public Snapshotter {
     Result<SnapshotMetadata> snapshot(const SnapshotArgs& args) override;
 
    private:
-    Str newSnapshotName(const Str& backupName);
-
-    Result<void> traverse(
-        const kc::Path& source, const kc::Path& destination,
-        const SourceTree::Nodes& nodes
-    );
-
     const kc::FileSystem& m_fs;
 };
 

@@ -1,7 +1,7 @@
 # Anchor
 
 Anchor is a C++23 backup engine with a command-line client and a background
-daemon. It uses YAML manifests to select files and directories, build snapshots,
+daemon. It uses YAML backup plans to select files and directories, build snapshots,
 and copy them to a backup destination.
 
 The project supports directory, ZIP, and gzip-compressed tar (TGZ) snapshots
@@ -107,7 +107,7 @@ Use `--port PORT` at any command level to select the local daemon port, and
 spelling is also supported. The CLI's command structure is described in
 [docs/cli.md](docs/cli.md).
 
-## Example backup manifest
+## Example backup plan
 
 Save this as `personal.yaml` in the directory configured by the daemon's
 `paths.backup_plans` setting. Both `.yaml` and `.yml` files are supported; the
@@ -130,16 +130,20 @@ sources:
 This selects PDF files directly inside `Documents`, the `notes.txt` file, and
 the entire `Pictures` directory. Include paths and glob patterns are relative
 to each source's `root`; selected directories are copied recursively. Relative
-paths are preserved in the snapshot, such as `Documents/notes.txt`.
+paths are preserved inside a numbered source directory in the snapshot, such
+as `0/Documents/notes.txt`. Source numbers follow the plan's source order.
 
 `$HOME` is expanded in source roots and local destination paths. The destination
 receives a separate directory or archive file for each snapshot. Create the
 destination directory before running a backup.
 
 Use `archive: zip` or `archive: tgz` to store a compressed archive instead of a
-directory. Archive members retain their paths relative to each source root.
-Selected directories include their contents recursively; permissions,
-modification times, and symbolic links are preserved. Archives use `.zip` and
+directory. Each snapshot contains `manifest.json` alongside its numbered source
+directories, including inside ZIP and TGZ archives. The manifest records source
+roots, entries, restoration metadata, and SHA-256 hashes of captured file bytes.
+The format is described in [docs/snapshots.md](docs/snapshots.md).
+Selected directories include their contents recursively; original permissions
+and modification times are recorded for restoration. Archives use `.zip` and
 `.tgz` filenames respectively. Symbolic links are stored as links without
 following their targets.
 

@@ -15,7 +15,8 @@ class BackupRunTest : public Test {
     BackupPlan backup = plan();
     Path workspace{"/workspace"};
     SnapshotMetadata metadata{
-        "snapshot", Location::local("/workspace/snapshot")
+        "snapshot", Location::local("/workspace/snapshot"),
+        SnapshotManifest{.name = "snapshot"}, Str(64, 'a')
     };
     Str created;
     Uuid runUuid;
@@ -98,6 +99,8 @@ TEST_F(BackupRunTest, SuccessTransitionsInOrderAndCleansWorkspace) {
             [&](const SnapshotMetadata& snapshot,
                 const Location& destination) -> Result<SnapshotMetadata> {
                 EXPECT_EQ(snapshot.name, metadata.name);
+                EXPECT_EQ(snapshot.manifest.name, metadata.manifest.name);
+                EXPECT_EQ(snapshot.manifestSha256, metadata.manifestSha256);
                 EXPECT_EQ(destination.str(), backup.destination.str());
                 return metadata;
             }

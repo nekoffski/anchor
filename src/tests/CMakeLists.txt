@@ -1,4 +1,5 @@
 find_package(GTest CONFIG REQUIRED)
+find_package(OpenSSL CONFIG REQUIRED)
 
 add_executable(anchor-tests
     "cli/ApplicationTest.cpp"
@@ -7,6 +8,7 @@ add_executable(anchor-tests
     "lib/adapters/backup/OnDiskBackupPlanRepoTest.cpp"
     "lib/adapters/backup/SnapshotTest.cpp"
     "lib/adapters/backup/ArchiveSnapshotterTest.cpp"
+    "lib/adapters/crypto/Sha256Test.cpp"
     "lib/core/ConfigTest.cpp"
     "lib/core/ErrorTest.cpp"
     "lib/core/services/RequestQueueTest.cpp"
@@ -20,6 +22,6 @@ add_executable(anchor-tests
 )
 target_include_directories(anchor-tests PRIVATE lib)
 target_compile_definitions(anchor-tests PRIVATE ANCHOR_TEST_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-target_link_libraries(anchor-tests PRIVATE anchor-cli-commands GTest::gmock_main)
+target_link_libraries(anchor-tests PRIVATE anchor-cli-commands GTest::gmock_main OpenSSL::Crypto)
 include(GoogleTest)
 gtest_discover_tests(anchor-tests PROPERTIES LABELS unit TIMEOUT 10)

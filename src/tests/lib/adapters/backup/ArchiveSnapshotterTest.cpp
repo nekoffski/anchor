@@ -5,8 +5,10 @@
 
 #include <array>
 #include <csignal>
+#include <kcore/serialization/Json.hh>
 #include <map>
 
+#include "ManifestAssertions.hh"
 #include "TestSupport.hh"
 #include "adapters/backup/ArchiveSnapshotter.hh"
 #include "core/Error.hh"
@@ -110,9 +112,12 @@ TEST_P(ArchiveSnapshotterTest, IncludesContentsOfSelectedDirectory) {
     ASSERT_TRUE(snapshot) << snapshot.error().message();
     auto contents = readArchive(snapshot->location.path);
     ASSERT_TRUE(contents) << contents.error().message();
-    ASSERT_TRUE(contents->entries.contains("assets/nested/data.txt"));
+    expectManifestResult(
+        *snapshot, contents->entries.at("manifest.json").contents
+    );
+    ASSERT_TRUE(contents->entries.contains("0/assets/nested/data.txt"));
     EXPECT_EQ(
-        contents->entries.at("assets/nested/data.txt").contents,
+        contents->entries.at("0/assets/nested/data.txt").contents,
         "directory contents"
     );
 }
@@ -183,6 +188,9 @@ TEST_P(
     EXPECT_EQ(snapshot->location.type, LocationType::local);
     auto contents = readArchive(snapshot->location.path);
     ASSERT_TRUE(contents) << contents.error().message();
+    expectManifestResult(
+        *snapshot, contents->entries.at("manifest.json").contents
+    );
     EXPECT_EQ(
         contents->format,
         GetParam() == ArchiveType::zip ? ARCHIVE_FORMAT_ZIP : ARCHIVE_FORMAT_TAR
@@ -191,22 +199,19 @@ TEST_P(
         contents->filter, GetParam() == ArchiveType::zip ? ARCHIVE_FILTER_NONE
                                                          : ARCHIVE_FILTER_GZIP
     );
-    ASSERT_EQ(contents->entries.size(), 5);
-    EXPECT_EQ(contents->entries.at("docs/data.bin").contents, binary);
-    EXPECT_EQ(contents->entries.at("empty-file").contents, "");
-    EXPECT_EQ(contents->entries.at("empty-directory").type, AE_IFDIR);
-    EXPECT_FALSE(contents->entries.contains("docs/excluded.txt"));
-    EXPECT_EQ(contents->entries.at("run.sh").permissions, 0700);
+    ASSERT_EQ(contents->entries.size(), 7);
+    EXPECT_EQ(contents->entries.at("0/docs/data.bin").contents, binary);
+    EXPECT_EQ(contents->entries.at("0/empty-file").contents, "");
+    EXPECT_EQ(contents->entries.at("0/empty-directory").type, AE_IFDIR);
+    EXPECT_FALSE(contents->entries.contains("0/docs/excluded.txt"));
+    EXPECT_EQ(contents->entries.at("0/run.sh").permissions, 0700);
     EXPECT_EQ(
-        contents->entries.at("run.sh").mtime,
+        contents->entries.at("0/run.sh").mtime,
         modified.time_since_epoch().count()
     );
 }
 
-TEST_P(
-    ArchiveSnapshotterTest,
-    MergesDirectoriesAcrossSourcesWithoutDuplicateEntries
-) {
+TEST_P(ArchiveSnapshotterTest, KeepsDirectoriesSeparateAcrossSources) {
     ASSERT_TRUE(fs.createDirectory(path("first/docs")));
     ASSERT_TRUE(fs.createDirectory(path("second/docs")));
     ASSERT_TRUE(fs.createDirectory(path("workspace")));
@@ -223,12 +228,17 @@ TEST_P(
     ASSERT_TRUE(snapshot) << snapshot.error().message();
     auto contents = readArchive(snapshot->location.path);
     ASSERT_TRUE(contents) << contents.error().message();
-    ASSERT_EQ(contents->entries.size(), 3);
-    EXPECT_EQ(contents->entries.at("docs/one").contents, "first");
-    EXPECT_EQ(contents->entries.at("docs/two").contents, "second");
+    expectManifestResult(
+        *snapshot, contents->entries.at("manifest.json").contents
+    );
+    ASSERT_EQ(contents->entries.size(), 7);
+    EXPECT_EQ(contents->entries.at("0/docs/one").contents, "first");
+    EXPECT_EQ(contents->entries.at("1/docs/two").contents, "second");
 }
 
-TEST_P(ArchiveSnapshotterTest, ConflictingFilesAcrossSourcesAreReported) {
+TEST_P(
+    ArchiveSnapshotterTest, IdenticalRelativePathsAcrossSourcesRemainDistinct
+) {
     ASSERT_TRUE(fs.createDirectory(path("first")));
     ASSERT_TRUE(fs.createDirectory(path("second")));
     ASSERT_TRUE(fs.createDirectory(path("workspace")));
@@ -242,11 +252,16 @@ TEST_P(ArchiveSnapshotterTest, ConflictingFilesAcrossSourcesAreReported) {
     const Str name = "daily";
     const auto workspace = path("workspace");
     auto snapshot = snapshotter.snapshot({name, trees, workspace});
-    ASSERT_FALSE(snapshot);
-    EXPECT_THAT(
-        snapshot.error().message(),
-        testing::HasSubstr("Conflicting archive path: 'file'")
-    );
+    ASSERT_TRUE(snapshot) << snapshot.error().message();
+    auto contents = readArchive(snapshot->location.path);
+    ASSERT_TRUE(contents);
+    EXPECT_EQ(contents->entries.at("0/file").contents, "first");
+    EXPECT_EQ(contents->entries.at("1/file").contents, "second");
+    const auto manifest =
+        Json::parse(contents->entries.at("manifest.json").contents);
+    ASSERT_EQ(manifest["sources"].size(), 2);
+    EXPECT_EQ(manifest["sources"][0]["root"], path("first").str());
+    EXPECT_EQ(manifest["sources"][1]["root"], path("second").str());
 }
 
 TEST_P(ArchiveSnapshotterTest, EmptySelectionsProduceReadableArchives) {
@@ -259,7 +274,15 @@ TEST_P(ArchiveSnapshotterTest, EmptySelectionsProduceReadableArchives) {
     ASSERT_TRUE(snapshot) << snapshot.error().message();
     auto contents = readArchive(snapshot->location.path);
     ASSERT_TRUE(contents) << contents.error().message();
-    EXPECT_TRUE(contents->entries.empty());
+    expectManifestResult(
+        *snapshot, contents->entries.at("manifest.json").contents
+    );
+    ASSERT_EQ(contents->entries.size(), 2);
+    EXPECT_TRUE(contents->entries.contains("0"));
+    const auto manifest =
+        Json::parse(contents->entries.at("manifest.json").contents);
+    ASSERT_EQ(manifest["sources"].size(), 1);
+    EXPECT_TRUE(manifest["sources"][0]["entries"].empty());
 }
 
 TEST_P(ArchiveSnapshotterTest, UsesCompression) {
@@ -280,7 +303,10 @@ TEST_P(ArchiveSnapshotterTest, UsesCompression) {
     EXPECT_LT(*size, data.size() / 2);
     auto contents = readArchive(snapshot->location.path);
     ASSERT_TRUE(contents) << contents.error().message();
-    EXPECT_EQ(contents->entries.at("large").contents, data);
+    expectManifestResult(
+        *snapshot, contents->entries.at("manifest.json").contents
+    );
+    EXPECT_EQ(contents->entries.at("0/large").contents, data);
 }
 
 TEST_P(
@@ -307,11 +333,14 @@ TEST_P(
     ASSERT_TRUE(snapshot) << snapshot.error().message();
     auto contents = readArchive(snapshot->location.path);
     ASSERT_TRUE(contents) << contents.error().message();
-    ASSERT_EQ(contents->entries.size(), 5);
-    EXPECT_EQ(contents->entries.at("assets/link").type, AE_IFLNK);
-    EXPECT_EQ(contents->entries.at("assets/link").target, "file");
-    EXPECT_EQ(contents->entries.at("assets/broken").target, "missing");
-    EXPECT_EQ(contents->entries.at("assets/cycle").target, "..");
+    expectManifestResult(
+        *snapshot, contents->entries.at("manifest.json").contents
+    );
+    ASSERT_EQ(contents->entries.size(), 7);
+    EXPECT_EQ(contents->entries.at("0/assets/link").type, AE_IFLNK);
+    EXPECT_EQ(contents->entries.at("0/assets/link").target, "file");
+    EXPECT_EQ(contents->entries.at("0/assets/broken").target, "missing");
+    EXPECT_EQ(contents->entries.at("0/assets/cycle").target, "..");
 }
 
 TEST_P(ArchiveSnapshotterTest, PreservesUtf8Filenames) {
@@ -331,8 +360,11 @@ TEST_P(ArchiveSnapshotterTest, PreservesUtf8Filenames) {
     ASSERT_TRUE(snapshot) << snapshot.error().message();
     auto contents = readArchive(snapshot->location.path);
     ASSERT_TRUE(contents) << contents.error().message();
-    EXPECT_EQ(contents->entries.at("zażółć.txt").contents, "unicode");
-    EXPECT_EQ(contents->entries.at(longName).contents, "long path");
+    expectManifestResult(
+        *snapshot, contents->entries.at("manifest.json").contents
+    );
+    EXPECT_EQ(contents->entries.at("0/zażółć.txt").contents, "unicode");
+    EXPECT_EQ(contents->entries.at("0/" + longName).contents, "long path");
 }
 
 TEST_P(ArchiveSnapshotterTest, InvalidOutputDirectoryReturnsAnError) {
@@ -399,7 +431,7 @@ TEST_P(ArchiveSnapshotterTest, RejectsIncludingItsOwnOutput) {
     ASSERT_FALSE(snapshot);
     EXPECT_THAT(
         snapshot.error().message(),
-        testing::HasSubstr("Can't add archive to itself")
+        testing::HasSubstr("Can't add snapshot to itself")
     );
 }
 
@@ -592,6 +624,7 @@ TEST_P(ArchiveSnapshotterTest, FileSystemPropagatesDirectoryListingFailures) {
         SourceTreeBuilder::build(fs, Source{path("source"), {"directory"}});
     StrictMock<MockFileSystem> mocked;
     EXPECT_CALL(mocked, info(_)).WillOnce(Return(*metadata));
+    EXPECT_CALL(mocked, equivalent(_, _)).WillOnce(Return(false));
     EXPECT_CALL(mocked, openFile(_, FileMode::createNew))
         .WillOnce(Invoke([&](const Path& output, FileMode mode) {
             return fs.openFile(output, mode);

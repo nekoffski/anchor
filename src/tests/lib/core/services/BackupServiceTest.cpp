@@ -273,7 +273,10 @@ TEST_F(BackupServiceTest, ShutdownDrainsRequestsAndQueuedBackupWork) {
     EXPECT_CALL(fs, glob("/source/file.txt"))
         .WillOnce(Return(std::vector<Path>{"/source/file.txt"}));
     EXPECT_CALL(fs, isDirectory(_)).WillOnce(Return(false));
-    SnapshotMetadata metadata{"snapshot", Location::local("/snapshot")};
+    SnapshotMetadata metadata{
+        "snapshot", Location::local("/snapshot"),
+        SnapshotManifest{.name = "snapshot"}, Str(64, 'a')
+    };
     EXPECT_CALL(*snapshotter, snapshot(_)).WillOnce(Return(metadata));
     EXPECT_CALL(*store, put(_, _)).WillOnce(Return(metadata));
     EXPECT_CALL(fs, removeAll(_)).WillOnce(Return(Result<void>{}));
@@ -337,7 +340,10 @@ TEST_F(BackupServiceTest, AcceptedRunKeepsItsPlanSnapshot) {
     EXPECT_CALL(fs, glob("/source/file.txt"))
         .WillOnce(Return(std::vector<Path>{"/source/file.txt"}));
     EXPECT_CALL(fs, isDirectory(_)).WillOnce(Return(false));
-    SnapshotMetadata metadata{"snapshot", Location::local("/snapshot")};
+    SnapshotMetadata metadata{
+        "snapshot", Location::local("/snapshot"),
+        SnapshotManifest{.name = "snapshot"}, Str(64, 'a')
+    };
     EXPECT_CALL(*snapshotter, snapshot(_)).WillOnce(Return(metadata));
     EXPECT_CALL(*store, put(_, _))
         .WillOnce(Invoke(

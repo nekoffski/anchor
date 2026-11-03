@@ -1,70 +1,132 @@
 #include "DirectorySnapshotter.hh"
 
-#include "core/Core.hh"
-#include "core/Error.hh"
+#include <filesystem>
+#include <ranges>
+
+#include "SnapshotBuilder.hh"
 
 namespace anchor {
+namespace {
+
+class DirectoryWriter : public SnapshotWriter {
+   public:
+    DirectoryWriter(const kc::FileSystem& fs, const kc::Path& root)
+        : m_fs(fs), m_root(root) {}
+
+    Result<void> finish() {
+        for (const auto& [path, info] : m_directories | std::views::reverse) {
+            if (auto r = applyMetadata(path, info); not r) {
+                return r;
+            }
+        }
+        return {};
+    }
+
+   private:
+    Result<void> beginEntry(
+        const Str& name, const kc::FileInfo& info
+    ) override {
+        m_path = kc::Path::join(m_root, name);
+        m_info = info;
+        switch (info.type) {
+            case kc::FileInfo::Type::directory:
+                m_directories.emplace_back(m_path, info);
+                return m_fs.createDirectory(m_path);
+            case kc::FileInfo::Type::symlink: {
+                std::error_code error;
+                std::filesystem::create_symlink(
+                    info.linkTarget, m_path.str(), error
+                );
+                if (error) {
+                    return Error::unexpected(
+                        kc::ErrorCode::fileSystemError,
+                        "Could not create symlink '{}': {}", m_path.str(),
+                        error.message()
+                    );
+                }
+                return {};
+            }
+            case kc::FileInfo::Type::regular: {
+                auto file = m_fs.openFile(m_path, kc::FileMode::createNew);
+                if (not file) {
+                    return Error::unexpected(file.error());
+                }
+                m_file = std::move(*file);
+                return {};
+            }
+            case kc::FileInfo::Type::other:
+                return Error::unexpected(
+                    kc::ErrorCode::invalidArgument, "Unsupported snapshot entry"
+                );
+        }
+        std::unreachable();
+    }
+
+    Result<void> writeData(std::span<const Byte> data) override {
+        return m_file->write(data);
+    }
+
+    Result<void> endEntry() override {
+        if (m_info.type == kc::FileInfo::Type::directory) {
+            return {};
+        }
+        if (m_file) {
+            if (auto r = m_file->close(); not r) {
+                return r;
+            }
+            m_file.reset();
+        }
+        return applyMetadata(m_path, m_info);
+    }
+
+    Result<void> applyMetadata(
+        const kc::Path& path, const kc::FileInfo& info
+    ) const {
+        if (info.type != kc::FileInfo::Type::symlink) {
+            const auto permissions =
+                m_fs.setPermissions(path, info.permissions);
+            if (not permissions) {
+                return permissions;
+            }
+        }
+        return m_fs.setModifiedTime(path, info.modified);
+    }
+
+    const kc::FileSystem& m_fs;
+    kc::Path m_root;
+    kc::Path m_path;
+    kc::FileInfo m_info{};
+    std::unique_ptr<kc::File> m_file;
+    std::vector<std::pair<kc::Path, kc::FileInfo>> m_directories;
+};
+
+}  // namespace
 
 DirectorySnapshotter::DirectorySnapshotter(const kc::FileSystem& fs)
     : m_fs(fs) {}
 
-Result<void> DirectorySnapshotter::traverse(
-    const kc::Path& source, const kc::Path& destination,
-    const SourceTree::Nodes& nodes
-) {
-    // TODO: refactor to use the relative path stored in node
-
-    if (nodes.empty()) {  // leaf, copy and return
-        if (auto r = m_fs.copyRecursive(source, destination); not r) {
-            log::error(
-                "Failed to copy node from '{}' to '{}' - {}", source.str(),
-                destination.str(), r.error()
-            );
-            return Error::unexpected(r.error());
-        }
-    }
-
-    for (const auto& node : nodes | std::views::values) {
-        if (auto r = m_fs.createDirectory(destination); not r) {
-            log::error("Failed to create directory '{}'", destination.str());
-            return Error::unexpected(r.error());
-        }
-
-        const auto d = kc::Path::join(destination, node.name);
-        const auto s = kc::Path::join(source, node.name);
-
-        if (auto r = traverse(s, d, node.children); not r) {
-            return r;
-        }
-    }
-
-    return {};
-}
-
 Result<SnapshotMetadata> DirectorySnapshotter::snapshot(
     const SnapshotArgs& args
 ) {
-    const auto& [name, trees, workspace] = args;
-    const auto path = kc::Path::join(workspace, name);
-
-    if (auto result = m_fs.createDirectory(path); not result) {
-        return Error::unexpected(result.error());
+    const auto path = kc::Path::join(args.workspace, args.name);
+    if (m_fs.exists(path)) {
+        return Error::unexpected(
+            kc::ErrorCode::fileSystemError, "Snapshot already exists: '{}'",
+            path.str()
+        );
     }
-
-    for (const auto& tree : trees) {
-        if (tree.nodes.empty()) {
-            continue;
-        }
-        if (auto r = traverse(tree.root, path, tree.nodes); not r) {
-            return Error::unexpected(r.error());
-        }
+    if (auto r = m_fs.createDirectory(path); not r) {
+        return Error::unexpected(r.error());
     }
-
-    SnapshotMetadata metadata{
-        .name = name, .location = Location::local(path.str())
-    };
-
-    return metadata;
+    DirectoryWriter writer{m_fs, path};
+    auto snapshot = SnapshotBuilder{m_fs}.write(args, path, writer);
+    if (not snapshot) {
+        return Error::unexpected(snapshot.error());
+    }
+    if (auto r = writer.finish(); not r) {
+        return Error::unexpected(r.error());
+    }
+    return snapshot;
 }
 
 }  // namespace anchor
