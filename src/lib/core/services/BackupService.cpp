@@ -1,8 +1,7 @@
 #include "BackupService.hh"
 
-#include <kcore/Log.hh>
-
 #include "BackupRun.hh"
+#include "core/Core.hh"
 #include "core/Error.hh"
 
 namespace anchor {
@@ -17,7 +16,7 @@ BackupService::BackupService(
       m_orchestrator(m_ports.backupRepo(), m_ports.executor()),
       m_scheduler(m_ports.backupRepo(), sender()) {
     if (auto result = readPlans(); not result) {
-        kc::log::error("Could not load all backup plans: {}", result.error());
+        log::error("Could not load all backup plans: {}", result.error());
     }
 }
 
@@ -53,11 +52,11 @@ void BackupService::run() {
 
 Response BackupService::handle(const TriggerBackupRequest& request) {
     const auto& name = request.name;
-    kc::log::debug("Triggering backup: '{}'", name);
+    log::debug("Triggering backup: '{}'", name);
 
     const auto backup = m_ports.backupRepo().get(name);
     if (not backup) {
-        kc::log::error("Backup plan not found: '{}'", name);
+        log::error("Backup plan not found: '{}'", name);
         return ErrorResponse{
             Error{kc::ErrorCode::invalidArgument, "Backup plan not found"}
         };
@@ -65,22 +64,20 @@ Response BackupService::handle(const TriggerBackupRequest& request) {
 
     if (request.scheduled && (not backup->enabled ||
                               (backup->run && isActive(backup->run->state)))) {
-        kc::log::debug("Skipping scheduled backup '{}'", name);
+        log::debug("Skipping scheduled backup '{}'", name);
         return AckResponse{};
     }
 
     auto args = preflightBackup(*backup);
 
     if (not args) {
-        kc::log::error("Failed to preflight backup: '{}'", name);
+        log::error("Failed to preflight backup: '{}'", name);
         return ErrorResponse{args.error()};
     }
 
     auto result = m_orchestrator.enqueueBackup(std::move(*args));
     if (not result) {
-        kc::log::error(
-            "Could not enqueue backup '{}': {}", name, result.error()
-        );
+        log::error("Could not enqueue backup '{}': {}", name, result.error());
         return ErrorResponse{result.error()};
     }
     return AckResponse{};
@@ -91,7 +88,7 @@ Response BackupService::handle(const GetBackupsRequest&) {
 }
 
 Response BackupService::handle(const DiagnosticRequest& request) {
-    kc::log::debug("Received diagnostic request: {}", request.details);
+    log::debug("Received diagnostic request: {}", request.details);
     return AckResponse{};
 }
 
@@ -104,7 +101,7 @@ Response BackupService::handle(const ReloadPlansRequest&) {
 
 Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {
     if (backup.run && isActive(backup.run->state)) {
-        kc::log::info("Backup '{}' is already running.", backup.plan.name);
+        log::info("Backup '{}' is already running.", backup.plan.name);
         return Error::unexpected(
             ErrorCode::alreadyRunning, "Backup is already running"
         );
@@ -113,7 +110,7 @@ Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {
     auto* snapshotter = m_ports.snapshotters().get(backup.plan.archiveType);
 
     if (not snapshotter) {
-        kc::log::error(
+        log::error(
             "Snapshotter not found: '{}'",
             archiveTypeToStr(backup.plan.archiveType)
         );
@@ -125,7 +122,7 @@ Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {
     auto* store = m_ports.snapshotStores().get(backup.plan.destination.type);
 
     if (not store) {
-        kc::log::error(
+        log::error(
             "Snapshot store not found: '{}'",
             locationTypeToStr(backup.plan.destination.type)
         );
@@ -146,11 +143,11 @@ Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {
 
 Result<void> BackupService::readPlans() {
     return m_ports.planRepo().forEach([&](const auto& plan) {
-        kc::log::info("Loaded backup plan: '{}'", plan.name);
+        log::info("Loaded backup plan: '{}'", plan.name);
         for (const auto& source : plan.sources) {
-            kc::log::info("\tSource: '{}'", source.root.str());
+            log::info("\tSource: '{}'", source.root.str());
             for (const auto& include : source.includes) {
-                kc::log::info("\t\tInclude: '{}'", include);
+                log::info("\t\tInclude: '{}'", include);
             }
         }
 

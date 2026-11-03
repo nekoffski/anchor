@@ -1,7 +1,6 @@
 #include "DirectorySnapshotter.hh"
 
-#include <kcore/Log.hh>
-
+#include "core/Core.hh"
 #include "core/Error.hh"
 
 namespace anchor {
@@ -17,7 +16,7 @@ Result<void> DirectorySnapshotter::traverse(
 
     if (nodes.empty()) {  // leaf, copy and return
         if (auto r = m_fs.copyRecursive(source, destination); not r) {
-            kc::log::error(
+            log::error(
                 "Failed to copy node from '{}' to '{}' - {}", source.str(),
                 destination.str(), r.error()
             );
@@ -27,9 +26,7 @@ Result<void> DirectorySnapshotter::traverse(
 
     for (const auto& node : nodes | std::views::values) {
         if (auto r = m_fs.createDirectory(destination); not r) {
-            kc::log::error(
-                "Failed to create directory '{}'", destination.str()
-            );
+            log::error("Failed to create directory '{}'", destination.str());
             return Error::unexpected(r.error());
         }
 

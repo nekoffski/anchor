@@ -19,7 +19,7 @@ void AsioServer::run() {
     asio::co_spawn(
         m_io,
         [&]() -> asio::awaitable<void> {
-            kc::log::info("API server listening on port {}", m_cfg.api.port);
+            log::info("API server listening on port {}", m_cfg.api.port);
 
             for (;;) {
                 co_await acceptConnection();
@@ -37,7 +37,7 @@ asio::awaitable<void> AsioServer::acceptConnection() {
         co_await m_acceptor.async_accept(asio::as_tuple(asio::use_awaitable));
 
     if (ec) {
-        kc::log::error("failed to accept connection: {}", ec.message());
+        log::error("failed to accept connection: {}", ec.message());
         co_return;
     }
 

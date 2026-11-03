@@ -1,7 +1,6 @@
 #include "AsioSession.hh"
 
 #include <kcore/Functional.hh>
-#include <kcore/Log.hh>
 #include <kcore/String.hh>
 
 #include "core/Core.hh"
@@ -38,21 +37,19 @@ AsioSession::AsioSession(
       m_ident(extractIdent(m_socket)) {}
 
 asio::awaitable<void> AsioSession::start() {
-    kc::log::info("{} - session started", m_ident);
-    KCORE_DEFER { kc::log::info("{} - session ended", m_ident); };
+    log::info("{} - session started", m_ident);
+    KCORE_DEFER { log::info("{} - session ended", m_ident); };
 
     for (;;) {
         auto req = co_await readRequest();
 
         if (not req) {
             if (req.error().code() == ErrorCode::eof) {
-                kc::log::info("{} - client disconnected", m_ident);
+                log::info("{} - client disconnected", m_ident);
                 co_return;
             }
 
-            kc::log::error(
-                "{} - error reading request - {}", m_ident, req.error()
-            );
+            log::error("{} - error reading request - {}", m_ident, req.error());
             proto::ErrorResponse response{req.error()};
             co_return co_await writeResponse(response);
         }
@@ -68,7 +65,7 @@ AsioSession::readRequest() {
 
     if (not message) {
         if (message.error().code() != ErrorCode::eof) {
-            kc::log::error(
+            log::error(
                 "{} - error reading from socket: {}", m_ident,
                 message.error().message()
             );
@@ -79,7 +76,7 @@ AsioSession::readRequest() {
     auto json = kc::parseJson(message.value());
 
     if (not json) {
-        kc::log::error("{} - error parsing JSON", m_ident);
+        log::error("{} - error parsing JSON", m_ident);
         co_return Error::unexpected(json.error());
     }
 
@@ -92,7 +89,7 @@ asio::awaitable<void> AsioSession::writeResponse(
     auto json = message.serialize().dump() + '\n';
 
     if (auto response = co_await write(json); not response) {
-        kc::log::error(
+        log::error(
             "{} - error writing response: {}", m_ident,
             response.error().message()
         );
@@ -116,7 +113,7 @@ asio::awaitable<Result<Str>> AsioSession::read() {
 
     message.pop_back();  // Remove delimiter
 
-    kc::log::debug(
+    log::debug(
         "{} - received message len={}, '{}'", m_ident, bytesRead, message
     );
     co_return message;
@@ -131,7 +128,7 @@ asio::awaitable<Result<void>> AsioSession::write(const Str& message) {
         co_return Error::unexpected(convertError(ec));
     }
 
-    kc::log::debug(
+    log::debug(
         "{} - sent message len={}, '{}'", m_ident, bytesWritten, message
     );
     co_return Result<void>{};

@@ -1,6 +1,5 @@
 #include "OnDiskBackupPlanRepo.hh"
 
-#include <kcore/Log.hh>
 #include <kcore/serialization/Yaml.hh>
 #include <ranges>
 
@@ -141,18 +140,18 @@ Result<std::vector<kc::Path>> OnDiskBackupPlanRepo::list() const {
 Result<void> OnDiskBackupPlanRepo::forEach(Callback callback) const {
     const auto& paths = list();
     if (not paths) {
-        kc::log::error("Could not list backup plans: {}", paths.error());
+        log::error("Could not list backup plans: {}", paths.error());
         return Error::unexpected(paths.error());
     }
 
     kc::Opt<Error> failure;
     for (const auto& path : *paths) {
-        kc::log::debug("Parsing backup plan: {}", path.str());
+        log::debug("Parsing backup plan: {}", path.str());
 
         if (auto plan = parseBackupPlan(path, m_fs); plan) {
             callback(*plan);
         } else {
-            kc::log::error(
+            log::error(
                 "Could not load backup plan: {} due to {}", path.str(),
                 plan.error()
             );

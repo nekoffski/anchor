@@ -1,6 +1,5 @@
 
 #include <kcore/Functional.hh>
-#include <kcore/Log.hh>
 #include <kcore/Unwrap.hh>
 #include <kcore/runtime/SignalHandler.hh>
 
@@ -12,31 +11,32 @@
 #include "adapters/backup/OnDiskSnapshotStore.hh"
 #include "adapters/executors/InlineExecutor.hh"
 #include "adapters/executors/ThreadPoolExecutor.hh"
+#include "core/Core.hh"
 #include "core/services/BackupService.hh"
 
 using namespace anchor;
 
 int main(int argc, const char** argv) {
-    kc::log::expect(argc == 2, "Usage: {} <config_file>", argv[0]);
+    log::expect(argc == 2, "Usage: {} <config_file>", argv[0]);
 
     kc::Path configPath{argv[1]};
     auto cfg = kc::unwrap(Config::load(configPath));
 
-    kc::log::init(
-        kc::log::LoggerOptions{
+    log::init(
+        log::LoggerOptions{
             .enableColors = false,
-            .level = kc::log::Level::debug,
+            .level = log::Level::debug,
             .formatPattern = "%^[%d-%m-%Y %T] [Th: %t] %-7l [anchord]: %v %$",
         }
     );
-    kc::log::info("daemon starting");
-    KCORE_DEFER { kc::log::info("daemon shutting down, cya!"); };
+    log::info("daemon starting");
+    KCORE_DEFER { log::info("daemon shutting down, cya!"); };
 
     kc::FileSystem fs;
     kc::SignalHandler signals;
 
     OnDiskBackupPlanRepo backupPlanRepo{cfg.paths.backupPlans, fs};
-    kc::log::expect(backupPlanRepo.valid());
+    log::expect(backupPlanRepo.valid());
 
     Snapshotters snapshotters;
     snapshotters.add<DirectorySnapshotter>(ArchiveType::directory, fs);
@@ -69,10 +69,10 @@ int main(int argc, const char** argv) {
     server.start();
 
     signals.wait([&](kc::Signal s) {
-        kc::log::info("received signal: {}", toString(s));
+        log::info("received signal: {}", toString(s));
 
         if (s == kc::Signal::sigint || s == kc::Signal::sigterm) {
-            kc::log::info("received shutdown request");
+            log::info("received shutdown request");
 
             server.stop();
             backupService.stop();

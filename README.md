@@ -29,7 +29,9 @@ in `.anchor/bootstrap.profile`.
 
 Shared utilities live in the [kcore](https://github.com/nekoffski/kcore)
 submodule at `external/kcore`. CMake builds it together with Anchor and links
-`kcore::kcore`; its C++ namespace is `kc`. Commit library changes in that
+`kcore::kcore`; its C++ namespace is `kc`. The [Core.hh wrapper](src/lib/core/Core.hh)
+re-exports foundational types and exposes logging as `log::` within Anchor.
+Commit library changes in that
 repository, then update Anchor's submodule pointer to the desired commit.
 
 The submodule tracks `main`. To update it to the latest revision on that branch:

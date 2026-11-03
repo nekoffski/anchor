@@ -1,7 +1,6 @@
 #include "Cron.hh"
 
 #include <algorithm>
-#include <kcore/Log.hh>
 
 #include "core/Core.hh"
 #include "core/Error.hh"
@@ -81,7 +80,7 @@ kc::Opt<std::chrono::sys_seconds> Cron::nextAfter(
                 *candidate > *search ? candidate : searchAfterDstGap(*search);
         }
     } catch (const cron::bad_cronexpr& e) {
-        kc::log::warn(
+        log::warn(
             "Could not find the next occurrence of '{}': {}",
             cron::to_cronstr(m_expr), e.what()
         );
@@ -101,7 +100,7 @@ bool Cron::matches(std::chrono::sys_seconds time) const {
         const auto current = std::chrono::system_clock::to_time_t(time);
         return cron::cron_next(m_expr, previous) == current;
     } catch (const cron::bad_cronexpr& e) {
-        kc::log::warn(
+        log::warn(
             "Could not evaluate cron expression '{}': {}",
             cron::to_cronstr(m_expr), e.what()
         );

@@ -33,9 +33,9 @@ void BackupRun::start() {
         return;
     }
     KCORE_DEFER {
-        kc::log::debug("Cleaning up workspace: {}", m_workspace.str());
+        log::debug("Cleaning up workspace: {}", m_workspace.str());
         if (auto res = m_fs.removeAll(m_workspace); not res) {
-            kc::log::error(
+            log::error(
                 "Failed to remove workspace: {} - {}", m_workspace.str(),
                 res.error().message()
             );
@@ -77,7 +77,7 @@ void BackupRun::fail(std::error_code code, const Str& reason) {
 }
 
 void BackupRun::fail(const Error& error) {
-    kc::log::error("Backup run failed: {}", error);
+    log::error("Backup run failed: {}", error);
 
     BackupRunStatus status{
         .state = BackupRunState::failed,

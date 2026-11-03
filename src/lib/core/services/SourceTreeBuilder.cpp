@@ -13,7 +13,7 @@ namespace {
 
 void logRecursive(const SourceTree::Nodes& node, u64 level = 1) {
     for (const auto& [k, v] : node) {
-        kc::log::debug("{}{}", std::string(level * 2, ' '), k);
+        log::debug("{}{}", std::string(level * 2, ' '), k);
         logRecursive(v.children, level + 1);
     }
 }
@@ -67,8 +67,8 @@ SourceTree SourceTreeBuilder::build(
         }
     }
 
-    if (kc::log::level() >= kc::log::Level::debug) {
-        kc::log::debug("Source tree '{}':", tree.root.str());
+    if (log::level() >= log::Level::debug) {
+        log::debug("Source tree '{}':", tree.root.str());
         logRecursive(tree.nodes);
     }
 

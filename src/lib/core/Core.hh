@@ -1,8 +1,11 @@
 #pragma once
 
 #include <kcore/Core.hh>
+#include <kcore/Log.hh>
 
 namespace anchor {
+
+namespace log = kc::log;
 
 using kc::u16;
 using kc::u32;

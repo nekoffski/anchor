@@ -41,3 +41,11 @@ responses.
 CLI unit tests inject a client and output streams to exercise parsing, dispatch,
 response validation, rendering, and exit codes without opening sockets. Protocol,
 controller, and service tests cover the corresponding daemon request flow.
+
+## Logging
+
+The CLI uses the `log` namespace alias exposed by
+[`core/Core.hh`](../src/lib/core/Core.hh), alongside Anchor's foundational type
+aliases. It delegates to kcore logging;
+[`main.cpp`](../src/cli/main.cpp) disables logs before running the CLI so command
+output remains on its designated streams.

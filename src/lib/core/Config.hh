@@ -1,6 +1,5 @@
 #pragma once
 
-#include <kcore/Log.hh>
 #include <kcore/io/FileSystem.hh>
 
 #include "core/Core.hh"
@@ -10,7 +9,7 @@ namespace anchor {
 
 struct Config {
     struct Log {
-        kc::log::Level level{kc::log::Level::trace};
+        log::Level level{log::Level::trace};
     };
 
     struct Api {
