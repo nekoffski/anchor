@@ -1,13 +1,9 @@
 #include "TestSupport.hh"
 #include "core/Error.hh"
-#include "proto/AckResponse.hh"
-#include "proto/DiagnosticRequest.hh"
-#include "proto/ErrorResponse.hh"
-#include "proto/GetBackupsRequest.hh"
-#include "proto/GetBackupsResponse.hh"
+#include "proto/BackupMessages.hh"
 #include "proto/Message.hh"
-#include "proto/ReloadPlansRequest.hh"
-#include "proto/TriggerBackupRequest.hh"
+#include "proto/SnapshotMessages.hh"
+#include "proto/SystemMessages.hh"
 
 namespace anchor::test {
 using namespace kc;
@@ -376,6 +372,65 @@ TEST(
     auto withoutRun = valid;
     withoutRun["run"] = nullptr;
     EXPECT_TRUE(proto::GetBackupsResponse::create(Json::array({withoutRun})));
+}
+
+TEST(Message, SnapshotMessagesRoundTripWithEmptyResponsePayloads) {
+    const Str uuid = "12345678-1234-4234-8234-123456789abc";
+    const std::vector<Json> messages{
+        proto::GetSnapshotsRequest{"daily"}.serialize(),
+        proto::GetSnapshotRequest{"daily", uuid}.serialize(),
+        proto::RemoveSnapshotRequest{"daily", uuid}.serialize(),
+        proto::GetSnapshotsResponse{}.serialize(),
+        proto::GetSnapshotResponse{}.serialize(),
+    };
+    for (const auto& json : messages) {
+        auto parsed = proto::Message::create(json);
+        ASSERT_TRUE(parsed) << json.dump();
+        EXPECT_EQ((*parsed)->serialize(), json);
+    }
+    EXPECT_EQ(messages[0]["body"], (Json{{"name", "daily"}}));
+    EXPECT_EQ(messages[1]["body"], (Json{{"name", "daily"}, {"uuid", uuid}}));
+    EXPECT_EQ(messages[2]["body"], messages[1]["body"]);
+    EXPECT_EQ(messages[3]["body"], Json::array());
+    EXPECT_TRUE(messages[4]["body"].is_null());
+}
+
+TEST(Message, SnapshotRequestsRejectInvalidNamesAndSnapshotIds) {
+    const Str uuid = "12345678-1234-4234-8234-123456789abc";
+    for (const auto* name :
+         {"GetSnapshotsRequest", "GetSnapshotRequest",
+          "RemoveSnapshotRequest"}) {
+        for (const auto& body :
+             {Json{}, Json::array(), Json::object(),
+              Json{{"name", ""}, {"uuid", uuid}},
+              Json{{"name", 42}, {"uuid", uuid}}}) {
+            EXPECT_FALSE(
+                proto::Message::create(Json{{"name", name}, {"body", body}})
+            ) << body;
+        }
+    }
+    for (const auto* name : {"GetSnapshotRequest", "RemoveSnapshotRequest"}) {
+        for (const auto& body :
+             {Json{{"name", "daily"}},
+              Json{{"name", "daily"}, {"uuid", nullptr}},
+              Json{{"name", "daily"}, {"uuid", 12}},
+              Json{{"name", "daily"}, {"uuid", ""}},
+              Json{{"name", "daily"}, {"uuid", "not-a-uuid"}}}) {
+            EXPECT_FALSE(
+                proto::Message::create(Json{{"name", name}, {"body", body}})
+            ) << body;
+        }
+    }
+}
+
+TEST(Message, SnapshotPlaceholderResponsesRejectUnexpectedPayloads) {
+    EXPECT_FALSE(proto::GetSnapshotsResponse::create(Json{}));
+    EXPECT_FALSE(proto::GetSnapshotsResponse::create(Json::object()));
+    EXPECT_FALSE(
+        proto::GetSnapshotsResponse::create(Json::array({Json::object()}))
+    );
+    EXPECT_FALSE(proto::GetSnapshotResponse::create(Json::object()));
+    EXPECT_FALSE(proto::GetSnapshotResponse::create(Json::array()));
 }
 
 }  // namespace anchor::test

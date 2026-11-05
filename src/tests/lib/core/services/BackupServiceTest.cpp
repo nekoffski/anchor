@@ -511,4 +511,30 @@ TEST(InlineExecutor, CallsMoveOnlyCallbackSynchronously) {
     EXPECT_EQ(result, 42);
 }
 
+TEST_F(
+    BackupServiceTest, SnapshotHandlersReturnEmptyResponsesWithoutBackendWork
+) {
+    for (const auto* name : {"daily", "unknown"}) {
+        EXPECT_TRUE(
+            std::holds_alternative<GetSnapshotsResponse>(
+                send(GetSnapshotsRequest{name})
+            )
+        );
+        EXPECT_TRUE(
+            std::holds_alternative<GetSnapshotResponse>(send(
+                GetSnapshotRequest{name, "12345678-1234-4234-8234-123456789abc"}
+            ))
+        );
+        EXPECT_TRUE(
+            std::holds_alternative<AckResponse>(send(
+                RemoveSnapshotRequest{
+                    name, "12345678-1234-4234-8234-123456789abc"
+                }
+            ))
+        );
+    }
+    EXPECT_FALSE(backups.getRunStatus("daily"));
+    EXPECT_FALSE(backups.get("unknown"));
+}
+
 }  // namespace anchor::test

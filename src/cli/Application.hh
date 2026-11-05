@@ -4,6 +4,7 @@
 
 #include "BackupCommands.hh"
 #include "DiagnosticsCommand.hh"
+#include "SnapshotCommands.hh"
 #include "core/Config.hh"
 #include "core/Core.hh"
 
@@ -22,6 +23,7 @@ class Application : public kc::NonCopyable, public kc::NonMovable {
     CommandContext m_context;
     DiagnosticsCommand m_diagnostics{m_app, m_context};
     BackupCommands m_backup{m_app, m_context};
+    SnapshotCommands m_snapshot{m_app, m_context};
 };
 
 }  // namespace anchor::cli

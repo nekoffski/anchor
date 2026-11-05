@@ -26,6 +26,9 @@ class BackupService : public kc::Thread {
     Response handle(const GetBackupsRequest& request);
     Response handle(const DiagnosticRequest& request);
     Response handle(const ReloadPlansRequest& request);
+    Response handle(const GetSnapshotsRequest& request);
+    Response handle(const GetSnapshotRequest& request);
+    Response handle(const RemoveSnapshotRequest& request);
 
     Result<BackupRunArgs> preflightBackup(const Backup& backup);
     Result<void> readPlans();

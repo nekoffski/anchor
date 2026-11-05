@@ -6,6 +6,7 @@ add_library(anchor-cli-commands STATIC
     CommandContext.cpp
     DiagnosticsCommand.cpp
     BackupCommands.cpp
+    SnapshotCommands.cpp
 )
 target_include_directories(anchor-cli-commands PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(anchor-cli-commands PUBLIC anchor CLI11::CLI11)

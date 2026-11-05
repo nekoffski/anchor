@@ -1,13 +1,9 @@
 #include "TestSupport.hh"
 #include "adapters/asio/AsioController.hh"
 #include "core/Error.hh"
-#include "proto/AckResponse.hh"
-#include "proto/DiagnosticRequest.hh"
-#include "proto/ErrorResponse.hh"
-#include "proto/GetBackupsRequest.hh"
-#include "proto/GetBackupsResponse.hh"
-#include "proto/ReloadPlansRequest.hh"
-#include "proto/TriggerBackupRequest.hh"
+#include "proto/BackupMessages.hh"
+#include "proto/SnapshotMessages.hh"
+#include "proto/SystemMessages.hh"
 
 namespace anchor::test {
 using namespace kc;
@@ -120,6 +116,68 @@ TEST(AsioController, ListRequestsReturnCurrentBackupsAndRunDetails) {
     ASSERT_TRUE(listed->backups()[0].run);
     EXPECT_EQ(listed->backups()[0].run->uuid, "active-run");
     EXPECT_EQ(listed->backups()[0].run->state, BackupRunState::snapshotting);
+}
+
+TEST(
+    AsioController, SnapshotRequestsPreserveScopeAndIdsThroughTheServiceQueue
+) {
+    const Str uuid = "12345678-1234-4234-8234-123456789abc";
+    for (const auto* name :
+         {"GetSnapshotsRequest", "GetSnapshotRequest",
+          "RemoveSnapshotRequest"}) {
+        RequestQueue queue;
+        AsioController controller{RequestSender{queue}};
+        auto message = proto::Message::create(
+            Json{{"name", name}, {"body", {{"name", "daily"}, {"uuid", uuid}}}}
+        );
+        ASSERT_TRUE(message);
+        auto response = std::async(std::launch::async, [&] {
+            return controller.handle(**message);
+        });
+        auto request = queue.popFor(1s);
+        queue.close();
+        ASSERT_TRUE(request);
+        if (const auto* list =
+                std::get_if<GetSnapshotsRequest>(&request->request)) {
+            EXPECT_EQ(Str{name}, "GetSnapshotsRequest");
+            EXPECT_EQ(list->backupName, "daily");
+            request->promise.set_value(GetSnapshotsResponse{});
+        } else if (
+            const auto* inspect =
+                std::get_if<GetSnapshotRequest>(&request->request)
+        ) {
+            EXPECT_EQ(Str{name}, "GetSnapshotRequest");
+            EXPECT_EQ(inspect->backupName, "daily");
+            EXPECT_EQ(inspect->uuid, uuid);
+            request->promise.set_value(GetSnapshotResponse{});
+        } else if (
+            const auto* remove =
+                std::get_if<RemoveSnapshotRequest>(&request->request)
+        ) {
+            EXPECT_EQ(Str{name}, "RemoveSnapshotRequest");
+            EXPECT_EQ(remove->backupName, "daily");
+            EXPECT_EQ(remove->uuid, uuid);
+            request->promise.set_value(AckResponse{});
+        } else {
+            ADD_FAILURE() << "Unexpected request type";
+            request->promise.set_value(
+                ErrorResponse{Error{ErrorCode::unknownRequest}}
+            );
+        }
+        ASSERT_EQ(response.wait_for(1s), std::future_status::ready);
+        const auto json = response.get()->serialize();
+        if (Str{name} == "GetSnapshotsRequest") {
+            EXPECT_EQ(json["name"], "GetSnapshotsResponse");
+            EXPECT_EQ(json["body"], Json::array());
+        } else {
+            EXPECT_EQ(
+                json["name"], Str{name} == "GetSnapshotRequest"
+                                  ? "GetSnapshotResponse"
+                                  : "AckResponse"
+            );
+            EXPECT_TRUE(json["body"].is_null());
+        }
+    }
 }
 
 }  // namespace anchor::test

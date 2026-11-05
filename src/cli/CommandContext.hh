@@ -7,7 +7,7 @@
 #include "Client.hh"
 #include "core/Core.hh"
 #include "core/Error.hh"
-#include "proto/ErrorResponse.hh"
+#include "proto/SystemMessages.hh"
 
 namespace anchor::cli {
 

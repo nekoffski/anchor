@@ -8,6 +8,9 @@ The `anchor` executable runs one command and exits. Backup commands share the
 | `anchor backup list` | Lists backups alphabetically, including enabled state, latest run state, run ID, and failure message when available. A backup with no run is shown as idle. |
 | `anchor backup trigger NAME` | Requests a run of the named backup and reports acceptance. `--name NAME` is also accepted. |
 | `anchor backup reload` | Adds or updates plans from the daemon's configured plan directory. See [reload semantics](scheduling.md#plans-and-cron-expressions). |
+| `anchor snapshot list BACKUP_NAME` | Returns an empty snapshot list for the named backup. |
+| `anchor snapshot inspect BACKUP_NAME SNAPSHOT_UUID` | Returns no snapshot details. |
+| `anchor snapshot remove BACKUP_NAME SNAPSHOT_UUID` | Acknowledges the request without removing anything. |
 | `anchor diagnostics --details TEXT` | Submits diagnostic text to the daemon's log. |
 
 `--port PORT` is a global option accepted before or after subcommands. Connections
@@ -16,6 +19,12 @@ Exactly one command is allowed per invocation. Success and help go to stdout;
 runtime errors go to stderr with exit code 1. Argument errors use CLI11's exit
 codes. A trigger acknowledgement means the run was accepted, and `backup list`
 reports its current or most recent state.
+
+Snapshot commands currently have placeholder daemon handlers. They do not look up
+backups or snapshots, access snapshot files, or maintain a registry. Each command
+requires a nonempty backup name; inspection and removal also require a valid UUID.
+The CLI reports the empty results and removal acknowledgement without claiming a
+snapshot was deleted.
 
 ## Command implementation
 
@@ -38,7 +47,7 @@ run containing a state, UUID, and optional error. Empty lists serialize as an
 empty array. The decoder validates these fields and returns errors for malformed
 responses.
 
-[`ErrorResponse`](../src/lib/proto/ErrorResponse.cpp) carries the error category,
+[`ErrorResponse`](../src/lib/proto/SystemMessages.cpp) carries the error category,
 numeric code, and message. Its decoder accepts Anchor errors and kcore's defined
 codes, including `threadPoolClosed`; reserved kcore codes 1 and 2 and unknown codes
 remain invalid. Encoding and decoding preserve the category and message.
@@ -46,6 +55,16 @@ remain invalid. Encoding and decoding preserve the category and message.
 CLI unit tests inject a client and output streams to exercise parsing, dispatch,
 response validation, rendering, and exit codes without opening sockets. Protocol,
 controller, and service tests cover the corresponding daemon request flow.
+
+`proto/BackupMessages` groups backup operations; `proto/SnapshotMessages` groups
+snapshot operations; `proto/SystemMessages` contains diagnostics, acknowledgements,
+and errors. UUID validation uses `kc::isValidUuid` from `kcore/Random.hh`.
+
+Snapshot protocol messages use `GetSnapshotsRequest` with a `name` field, and
+`GetSnapshotRequest` or `RemoveSnapshotRequest` with `name` and `uuid` fields.
+Their response bodies are respectively `GetSnapshotsResponse` with `[]`,
+`GetSnapshotResponse` with `null`, and `AckResponse` with `null`. The response
+decoders currently accept only these empty payloads.
 
 ## Logging
 

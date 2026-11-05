@@ -99,6 +99,18 @@ Response BackupService::handle(const ReloadPlansRequest&) {
     return AckResponse{};
 }
 
+Response BackupService::handle(const GetSnapshotsRequest&) {
+    return GetSnapshotsResponse{};
+}
+
+Response BackupService::handle(const GetSnapshotRequest&) {
+    return GetSnapshotResponse{};
+}
+
+Response BackupService::handle(const RemoveSnapshotRequest&) {
+    return AckResponse{};
+}
+
 Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {
     if (backup.run && isActive(backup.run->state)) {
         log::info("Backup '{}' is already running.", backup.plan.name);

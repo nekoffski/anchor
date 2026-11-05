@@ -4,10 +4,7 @@
 
 #include "core/Core.hh"
 #include "core/Error.hh"
-#include "proto/GetBackupsRequest.hh"
-#include "proto/GetBackupsResponse.hh"
-#include "proto/ReloadPlansRequest.hh"
-#include "proto/TriggerBackupRequest.hh"
+#include "proto/BackupMessages.hh"
 
 namespace anchor::cli {
 namespace {

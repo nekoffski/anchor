@@ -21,6 +21,23 @@ struct GetBackupsRequest {};
 
 struct ReloadPlansRequest {};
 
+struct GetSnapshotsRequest {
+    Str backupName;
+};
+
+struct GetSnapshotRequest {
+    Str backupName;
+    Uuid uuid;
+};
+
+struct RemoveSnapshotRequest {
+    Str backupName;
+    Uuid uuid;
+};
+
+struct GetSnapshotsResponse {};
+struct GetSnapshotResponse {};
+
 struct GetBackupsResponse {
     std::vector<Backup> backups;
 };
@@ -33,8 +50,11 @@ struct ErrorResponse {
 
 using Request = std::variant<
     DiagnosticRequest, TriggerBackupRequest, GetBackupsRequest,
-    ReloadPlansRequest>;
+    ReloadPlansRequest, GetSnapshotsRequest, GetSnapshotRequest,
+    RemoveSnapshotRequest>;
 
-using Response = std::variant<AckResponse, ErrorResponse, GetBackupsResponse>;
+using Response = std::variant<
+    AckResponse, ErrorResponse, GetBackupsResponse, GetSnapshotsResponse,
+    GetSnapshotResponse>;
 
 }  // namespace anchor

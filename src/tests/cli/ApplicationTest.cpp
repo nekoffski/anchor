@@ -3,12 +3,9 @@
 #include "Application.hh"
 #include "TestSupport.hh"
 #include "core/Error.hh"
-#include "proto/AckResponse.hh"
-#include "proto/DiagnosticRequest.hh"
-#include "proto/GetBackupsRequest.hh"
-#include "proto/GetBackupsResponse.hh"
-#include "proto/ReloadPlansRequest.hh"
-#include "proto/TriggerBackupRequest.hh"
+#include "proto/BackupMessages.hh"
+#include "proto/SnapshotMessages.hh"
+#include "proto/SystemMessages.hh"
 
 namespace anchor::test {
 using namespace kc;
@@ -248,6 +245,137 @@ TEST_F(CliTest, HelpListsOnlyImplementedCommandsWithoutContactingDaemon) {
     EXPECT_THAT(output.str(), Not(HasSubstr("mock")));
     EXPECT_THAT(output.str(), Not(HasSubstr("activate")));
     EXPECT_TRUE(errors.str().empty());
+}
+
+TEST_F(CliTest, SnapshotListScopesTheRequestAndRendersAnEmptyList) {
+    EXPECT_CALL(client, request(1234, _))
+        .WillOnce(Invoke(
+            [](
+                u16, const proto::Message& request
+            ) -> Result<std::unique_ptr<proto::Message>> {
+                const auto* typed = request.as<proto::GetSnapshotsRequest>();
+                EXPECT_NE(typed, nullptr);
+                if (typed) {
+                    EXPECT_EQ(typed->backupName(), "daily");
+                }
+                return proto::Message::create(
+                    proto::GetSnapshotsResponse{}.serialize()
+                );
+            }
+        ));
+    EXPECT_EQ(
+        run({"anchor", "snapshot", "list", "daily", "--port", "1234"}), 0
+    );
+    EXPECT_EQ(output.str(), "No snapshots found for backup 'daily'.\n");
+    EXPECT_TRUE(errors.str().empty());
+}
+
+TEST_F(CliTest, SnapshotInspectAndRemoveRetainBackupScopeAndUuid) {
+    const char* uuid = "12345678-1234-4234-8234-123456789abc";
+    EXPECT_CALL(client, request(_, _))
+        .WillOnce(Invoke(
+            [&](
+                u16, const proto::Message& request
+            ) -> Result<std::unique_ptr<proto::Message>> {
+                const auto* typed = request.as<proto::GetSnapshotRequest>();
+                EXPECT_NE(typed, nullptr);
+                if (typed) {
+                    EXPECT_EQ(typed->backupName(), "daily");
+                    EXPECT_EQ(typed->uuid(), uuid);
+                }
+                return proto::Message::create(
+                    proto::GetSnapshotResponse{}.serialize()
+                );
+            }
+        ));
+    EXPECT_EQ(run({"anchor", "snapshot", "inspect", "daily", uuid}), 0);
+    EXPECT_EQ(output.str(), "No snapshot details available.\n");
+    output.str("");
+    EXPECT_CALL(client, request(_, _))
+        .WillOnce(Invoke(
+            [&](
+                u16, const proto::Message& request
+            ) -> Result<std::unique_ptr<proto::Message>> {
+                const auto* typed = request.as<proto::RemoveSnapshotRequest>();
+                EXPECT_NE(typed, nullptr);
+                if (typed) {
+                    EXPECT_EQ(typed->backupName(), "daily");
+                    EXPECT_EQ(typed->uuid(), uuid);
+                }
+                return std::make_unique<proto::AckResponse>();
+            }
+        ));
+    EXPECT_EQ(run({"anchor", "snapshot", "remove", "daily", uuid}), 0);
+    EXPECT_EQ(output.str(), "Snapshot removal request acknowledged.\n");
+    EXPECT_TRUE(errors.str().empty());
+}
+
+TEST_F(CliTest, SnapshotArgumentErrorsDoNotContactTheDaemon) {
+    for (const auto& arguments :
+         {std::vector<const char*>{"anchor", "snapshot"},
+          std::vector<const char*>{"anchor", "snapshot", "list"},
+          std::vector<const char*>{"anchor", "snapshot", "list", ""},
+          std::vector<const char*>{"anchor", "snapshot", "inspect", "daily"},
+          std::vector<const char*>{"anchor", "snapshot", "remove", "daily", ""},
+          std::vector<const char*>{
+              "anchor", "snapshot", "inspect", "daily", "bad-uuid"
+          },
+          std::vector<const char*>{
+              "anchor", "snapshot", "remove", "daily", "bad-uuid"
+          },
+          std::vector<const char*>{
+              "anchor", "snapshot", "list", "daily", "remove"
+          }}) {
+        cli::Application application{client, output, errors};
+        EXPECT_NE(
+            application.run(
+                static_cast<int>(arguments.size()), arguments.data()
+            ),
+            0
+        );
+    }
+    EXPECT_TRUE(output.str().empty());
+}
+
+TEST_F(CliTest, SnapshotHelpListsCommandsWithoutConnecting) {
+    EXPECT_EQ(run({"anchor", "snapshot", "--help"}), 0);
+    for (const auto* command : {"list", "inspect", "remove"}) {
+        EXPECT_THAT(output.str(), HasSubstr(command));
+    }
+    EXPECT_TRUE(errors.str().empty());
+}
+
+TEST_F(CliTest, SnapshotCommandsReportUnexpectedResponsesAndDaemonErrors) {
+    EXPECT_CALL(client, request(_, _))
+        .WillOnce(Invoke(
+            [](
+                u16, const proto::Message&
+            ) -> Result<std::unique_ptr<proto::Message>> {
+                return std::make_unique<proto::AckResponse>();
+            }
+        ));
+    EXPECT_EQ(run({"anchor", "snapshot", "list", "daily"}), 1);
+    EXPECT_THAT(errors.str(), HasSubstr("Unexpected response 'AckResponse'"));
+    errors.str("");
+    EXPECT_CALL(client, request(_, _))
+        .WillOnce(Invoke(
+            [](
+                u16, const proto::Message&
+            ) -> Result<std::unique_ptr<proto::Message>> {
+                return std::make_unique<proto::ErrorResponse>(
+                    ErrorCode::queueError, "service stopped"
+                );
+            }
+        ));
+    EXPECT_EQ(
+        run(
+            {"anchor", "snapshot", "inspect", "daily",
+             "12345678-1234-4234-8234-123456789abc"}
+        ),
+        1
+    );
+    EXPECT_EQ(errors.str(), "anchor: service stopped\n");
+    EXPECT_TRUE(output.str().empty());
 }
 
 }  // namespace anchor::test

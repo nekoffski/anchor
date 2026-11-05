@@ -2,7 +2,8 @@
 
 Suites live directly in `test/`; shared code lives in `test/support/`.
 Pytest fixtures provide an isolated `workspace` and a prepared `daemon` for each
-test. They use the real daemon binary, not a mock. The CLI is not invoked.
+test. They use the real daemon binary. Snapshot command tests also invoke the
+CLI built alongside that daemon.
 
 ## Running
 

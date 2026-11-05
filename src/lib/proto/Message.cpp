@@ -1,12 +1,8 @@
 #include "Message.hh"
 
-#include "AckResponse.hh"
-#include "DiagnosticRequest.hh"
-#include "ErrorResponse.hh"
-#include "GetBackupsRequest.hh"
-#include "GetBackupsResponse.hh"
-#include "ReloadPlansRequest.hh"
-#include "TriggerBackupRequest.hh"
+#include "BackupMessages.hh"
+#include "SnapshotMessages.hh"
+#include "SystemMessages.hh"
 #include "core/Core.hh"
 #include "core/Error.hh"
 
@@ -44,6 +40,16 @@ Result<std::unique_ptr<Message>> Message::create(const kc::Json& json) {
         return GetBackupsResponse::create(body);
     } else if (name == "ReloadPlansRequest") {
         return ReloadPlansRequest::create(body);
+    } else if (name == "GetSnapshotsRequest") {
+        return GetSnapshotsRequest::create(body);
+    } else if (name == "GetSnapshotRequest") {
+        return GetSnapshotRequest::create(body);
+    } else if (name == "RemoveSnapshotRequest") {
+        return RemoveSnapshotRequest::create(body);
+    } else if (name == "GetSnapshotsResponse") {
+        return GetSnapshotsResponse::create(body);
+    } else if (name == "GetSnapshotResponse") {
+        return GetSnapshotResponse::create(body);
     }
     return Error::unexpected(ErrorCode::invalidRequest, "Unknown message name");
 }

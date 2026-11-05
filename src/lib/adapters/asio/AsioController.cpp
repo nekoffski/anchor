@@ -3,13 +3,9 @@
 #include <kcore/Functional.hh>
 
 #include "core/Error.hh"
-#include "proto/AckResponse.hh"
-#include "proto/DiagnosticRequest.hh"
-#include "proto/ErrorResponse.hh"
-#include "proto/GetBackupsRequest.hh"
-#include "proto/GetBackupsResponse.hh"
-#include "proto/ReloadPlansRequest.hh"
-#include "proto/TriggerBackupRequest.hh"
+#include "proto/BackupMessages.hh"
+#include "proto/SnapshotMessages.hh"
+#include "proto/SystemMessages.hh"
 
 namespace anchor {
 
@@ -24,6 +20,12 @@ Result<Request> translateRequest(const proto::Message& message) {
         return GetBackupsRequest{};
     } else if (const auto* _ = message.as<proto::ReloadPlansRequest>()) {
         return ReloadPlansRequest{};
+    } else if (const auto* req = message.as<proto::GetSnapshotsRequest>()) {
+        return GetSnapshotsRequest{req->backupName()};
+    } else if (const auto* req = message.as<proto::GetSnapshotRequest>()) {
+        return GetSnapshotRequest{req->backupName(), req->uuid()};
+    } else if (const auto* req = message.as<proto::RemoveSnapshotRequest>()) {
+        return RemoveSnapshotRequest{req->backupName(), req->uuid()};
     }
     return Error::unexpected(
         ErrorCode::unknownRequest, "Unknown request type: {}", message.name()
@@ -43,6 +45,12 @@ ResponsePtr translateResponse(const Response& request) {
             },
             [](const GetBackupsResponse& res) -> ResponsePtr {
                 return std::make_unique<proto::GetBackupsResponse>(res.backups);
+            },
+            [](const GetSnapshotsResponse&) -> ResponsePtr {
+                return std::make_unique<proto::GetSnapshotsResponse>();
+            },
+            [](const GetSnapshotResponse&) -> ResponsePtr {
+                return std::make_unique<proto::GetSnapshotResponse>();
             }
         },
         request

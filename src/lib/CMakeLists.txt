@@ -3,13 +3,9 @@ add_library(anchor STATIC
     "core/Error.cpp"
     # -- proto
     "proto/Message.cpp"
-    "proto/AckResponse.cpp"
-    "proto/DiagnosticRequest.cpp"
-    "proto/ErrorResponse.cpp"
-    "proto/TriggerBackupRequest.cpp"
-    "proto/GetBackupsRequest.cpp"
-    "proto/GetBackupsResponse.cpp"
-    "proto/ReloadPlansRequest.cpp"
+    "proto/BackupMessages.cpp"
+    "proto/SystemMessages.cpp"
+    "proto/SnapshotMessages.cpp"
     # -- adapters
     "adapters/asio/AsioServer.cpp"
     "adapters/asio/AsioSession.cpp"

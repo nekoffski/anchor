@@ -1,9 +1,19 @@
-#include "ErrorResponse.hh"
-
-#include "core/Core.hh"
-#include "core/Error.hh"
+#include "SystemMessages.hh"
 
 namespace anchor::proto {
+
+AckResponse::AckResponse() : MessageImpl("AckResponse") {}
+
+Result<std::unique_ptr<AckResponse>> AckResponse::create(const kc::Json& body) {
+    if (not body.is_null()) {
+        return Error::unexpected(
+            kc::ErrorCode::invalidArgument, "Invalid acknowledgement body"
+        );
+    }
+    return std::make_unique<AckResponse>();
+}
+
+kc::Json AckResponse::serializeBody() const { return nullptr; }
 
 kc::Json serializeError(const Error& error) {
     return kc::Json{
@@ -58,6 +68,26 @@ std::unique_ptr<ErrorResponse> ErrorResponse::create(const Error& error) {
 
 kc::Json ErrorResponse::serializeBody() const {
     return serializeError(m_error);
+}
+
+DiagnosticRequest::DiagnosticRequest(const Str& details)
+    : MessageImpl("DiagnosticRequest"), m_details(details) {}
+
+Result<std::unique_ptr<DiagnosticRequest>> DiagnosticRequest::create(
+    const kc::Json& body
+) {
+    if (not body.is_object() or not body.contains("details") or
+        not body["details"].is_string()) {
+        return Error::unexpected(
+            kc::ErrorCode::invalidArgument,
+            "Missing or invalid diagnostic details"
+        );
+    }
+    return std::make_unique<DiagnosticRequest>(body["details"].get<Str>());
+}
+
+kc::Json DiagnosticRequest::serializeBody() const {
+    return kc::Json{{"details", m_details}};
 }
 
 }  // namespace anchor::proto
