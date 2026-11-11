@@ -14,9 +14,9 @@ add_library(anchor STATIC
     "adapters/backup/InMemoryBackupRepo.cpp"
     "adapters/backup/OnDiskBackupPlanRepo.cpp"
     "adapters/backup/OnDiskSnapshotStore.cpp"
+    "adapters/serialization/SnapshotJson.cpp"
     "adapters/backup/ArchiveSnapshotter.cpp"
     "adapters/backup/SnapshotBuilder.cpp"
-    "adapters/backup/SnapshotManifestJson.cpp"
     "adapters/crypto/Sha256.cpp"
     # -- core
     "core/services/BackupService.cpp"

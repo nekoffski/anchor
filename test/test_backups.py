@@ -90,6 +90,6 @@ def test_failed_backup_reports_the_error_and_cleans_its_workspace(
         daemon.trigger_backup("daily")
         run = daemon.wait_for_run("daily", state="failed")
 
-    assert "Failed to copy" in run["error"]["message"]
+    assert "Snapshot destination is unavailable" in run["error"]["message"]
     assert workspace.snapshots("daily") == []
     workspace.assert_runs_cleaned()

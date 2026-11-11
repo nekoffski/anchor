@@ -433,4 +433,32 @@ TEST(Message, SnapshotPlaceholderResponsesRejectUnexpectedPayloads) {
     EXPECT_FALSE(proto::GetSnapshotResponse::create(Json::array()));
 }
 
+TEST(Message, SnapshotListRoundTripsSummariesAndRejectsMalformedRecords) {
+    const auto snapshot = snapshotSummary();
+    const std::vector<SnapshotSummary> records{snapshot};
+    const proto::GetSnapshotsResponse response{records};
+    const auto json = response.serialize();
+    const auto restored = proto::Message::create(json);
+    ASSERT_TRUE(restored);
+    const auto* listed = (*restored)->as<proto::GetSnapshotsResponse>();
+    ASSERT_NE(listed, nullptr);
+    ASSERT_EQ(listed->snapshots().size(), 1);
+    EXPECT_EQ(listed->snapshots()[0].uuid, snapshot.uuid);
+    EXPECT_EQ(listed->snapshots()[0].created, snapshot.created);
+    EXPECT_EQ(listed->snapshots()[0].location.str(), snapshot.location.str());
+    EXPECT_EQ((*restored)->serialize(), json);
+    for (const auto& [key, value] : std::vector<std::pair<Str, Json>>{
+             {"uuid", "bad"},
+             {"location", "local:///"},
+             {"location", "local://relative"},
+             {"created_at_ns", 1.5},
+             {"created_at_ns", std::numeric_limits<u64>::max()}
+         }) {
+        SCOPED_TRACE(key + ": " + value.dump());
+        auto body = json["body"];
+        body[0][key] = value;
+        EXPECT_FALSE(proto::GetSnapshotsResponse::create(body));
+    }
+}
+
 }  // namespace anchor::test

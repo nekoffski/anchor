@@ -274,8 +274,8 @@ TEST_F(BackupServiceTest, ShutdownDrainsRequestsAndQueuedBackupWork) {
         .WillOnce(Return(std::vector<Path>{"/source/file.txt"}));
     EXPECT_CALL(fs, isDirectory(_)).WillOnce(Return(false));
     SnapshotMetadata metadata{
-        "snapshot", Location::local("/snapshot"),
-        SnapshotManifest{.name = "snapshot"}, Str(64, 'a')
+        "snapshot", Location::local("/snapshot"), SnapshotManifest{},
+        Str(64, 'a')
     };
     EXPECT_CALL(*snapshotter, snapshot(_)).WillOnce(Return(metadata));
     EXPECT_CALL(*store, put(_, _)).WillOnce(Return(metadata));
@@ -341,8 +341,8 @@ TEST_F(BackupServiceTest, AcceptedRunKeepsItsPlanSnapshot) {
         .WillOnce(Return(std::vector<Path>{"/source/file.txt"}));
     EXPECT_CALL(fs, isDirectory(_)).WillOnce(Return(false));
     SnapshotMetadata metadata{
-        "snapshot", Location::local("/snapshot"),
-        SnapshotManifest{.name = "snapshot"}, Str(64, 'a')
+        "snapshot", Location::local("/snapshot"), SnapshotManifest{},
+        Str(64, 'a')
     };
     EXPECT_CALL(*snapshotter, snapshot(_)).WillOnce(Return(metadata));
     EXPECT_CALL(*store, put(_, _))
@@ -511,30 +511,72 @@ TEST(InlineExecutor, CallsMoveOnlyCallbackSynchronously) {
     EXPECT_EQ(result, 42);
 }
 
+TEST_F(BackupServiceTest, SnapshotOperationsUseTheCurrentPlanDestination) {
+    auto* store = addStore();
+    const auto snapshot = snapshotSummary();
+    EXPECT_CALL(*store, list(_, "daily"))
+        .WillOnce(Invoke(
+            [&](const Location& destination,
+                const Str&) -> Result<std::vector<SnapshotSummary>> {
+                EXPECT_EQ(destination.str(), backup.destination.str());
+                return std::vector<SnapshotSummary>{snapshot};
+            }
+        ));
+    auto response = send(GetSnapshotsRequest{"daily"});
+    const auto* listed = std::get_if<GetSnapshotsResponse>(&response);
+    ASSERT_NE(listed, nullptr);
+    ASSERT_EQ(listed->snapshots.size(), 1);
+    EXPECT_EQ(listed->snapshots[0].uuid, snapshot.uuid);
+    backup.destination = Location::local("/changed");
+    backups.putPlan(backup);
+    EXPECT_CALL(*store, remove(_, "daily", snapshot.uuid))
+        .WillOnce(Invoke(
+            [](const Location& destination, const Str&,
+               const Uuid&) -> Result<void> {
+                EXPECT_EQ(destination.str(), "local:///changed");
+                return {};
+            }
+        ));
+    EXPECT_TRUE(
+        std::holds_alternative<AckResponse>(
+            send(RemoveSnapshotRequest{"daily", snapshot.uuid})
+        )
+    );
+}
+
 TEST_F(
-    BackupServiceTest, SnapshotHandlersReturnEmptyResponsesWithoutBackendWork
+    BackupServiceTest, SnapshotErrorsPropagateAndInspectionRemainsAPlaceholder
 ) {
-    for (const auto* name : {"daily", "unknown"}) {
-        EXPECT_TRUE(
-            std::holds_alternative<GetSnapshotsResponse>(
-                send(GetSnapshotsRequest{name})
-            )
-        );
-        EXPECT_TRUE(
-            std::holds_alternative<GetSnapshotResponse>(send(
-                GetSnapshotRequest{name, "12345678-1234-4234-8234-123456789abc"}
-            ))
-        );
-        EXPECT_TRUE(
-            std::holds_alternative<AckResponse>(send(
-                RemoveSnapshotRequest{
-                    name, "12345678-1234-4234-8234-123456789abc"
-                }
-            ))
-        );
-    }
-    EXPECT_FALSE(backups.getRunStatus("daily"));
-    EXPECT_FALSE(backups.get("unknown"));
+    expectError(
+        send(GetSnapshotsRequest{"unknown"}), kc::ErrorCode::invalidArgument,
+        "Backup plan not found"
+    );
+    expectError(
+        send(GetSnapshotsRequest{"daily"}), kc::ErrorCode::invalidArgument,
+        "Snapshot store not found"
+    );
+    auto* store = addStore();
+    EXPECT_CALL(*store, list(_, "daily"))
+        .WillOnce(Return(
+            Error::unexpected(kc::ErrorCode::fileSystemError, "list failed")
+        ));
+    expectError(
+        send(GetSnapshotsRequest{"daily"}), kc::ErrorCode::fileSystemError,
+        "list failed"
+    );
+    EXPECT_CALL(*store, remove(_, "daily", _))
+        .WillOnce(Return(
+            Error::unexpected(kc::ErrorCode::fileSystemError, "remove failed")
+        ));
+    expectError(
+        send(RemoveSnapshotRequest{"daily", snapshotSummary().uuid}),
+        kc::ErrorCode::fileSystemError, "remove failed"
+    );
+    EXPECT_TRUE(
+        std::holds_alternative<GetSnapshotResponse>(
+            send(GetSnapshotRequest{"unknown", snapshotSummary().uuid})
+        )
+    );
 }
 
 }  // namespace anchor::test

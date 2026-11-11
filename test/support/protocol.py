@@ -4,7 +4,7 @@ import json
 import socket
 from typing import Any
 
-MAX_FRAME_BYTES = 32 * 1024
+MAX_FRAME_BYTES = 16 * 1024 * 1024
 
 
 class DaemonError(RuntimeError):

@@ -30,6 +30,12 @@ class BackupService : public kc::Thread {
     Response handle(const GetSnapshotRequest& request);
     Response handle(const RemoveSnapshotRequest& request);
 
+    struct SnapshotTarget {
+        SnapshotStore& store;
+        Location destination;
+    };
+
+    Result<SnapshotTarget> resolveSnapshotTarget(const Str& backupName);
     Result<BackupRunArgs> preflightBackup(const Backup& backup);
     Result<void> readPlans();
 

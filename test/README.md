@@ -47,7 +47,7 @@ def test_backup_contents(daemon: Daemon, workspace: Workspace) -> None:
 
     snapshots = workspace.snapshots("daily")
     assert len(snapshots) == 1
-    assert_snapshot_files(snapshots[0], {"notes.txt": b"important notes"})
+    assert_snapshot_files(snapshots[0], {"0/notes.txt": b"important notes"})
     workspace.assert_runs_cleaned()
 ```
 

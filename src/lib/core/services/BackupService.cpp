@@ -5,6 +5,16 @@
 #include "core/Error.hh"
 
 namespace anchor {
+namespace {
+
+Response toResponse(Result<Response> result) {
+    if (not result) {
+        return ErrorResponse{result.error()};
+    }
+    return std::move(*result);
+}
+
+}  // namespace
 
 BackupService::BackupService(
     const Config& cfg, const kc::FileSystem& fs, Ports ports
@@ -99,16 +109,53 @@ Response BackupService::handle(const ReloadPlansRequest&) {
     return AckResponse{};
 }
 
-Response BackupService::handle(const GetSnapshotsRequest&) {
-    return GetSnapshotsResponse{};
+Response BackupService::handle(const GetSnapshotsRequest& request) {
+    return toResponse(
+        resolveSnapshotTarget(request.backupName)
+            .and_then([&](const SnapshotTarget& target) {
+                return target.store.list(target.destination, request.backupName)
+                    .transform(
+                        [](std::vector<SnapshotSummary> snapshots) -> Response {
+                            return GetSnapshotsResponse{std::move(snapshots)};
+                        }
+                    );
+            })
+    );
 }
 
 Response BackupService::handle(const GetSnapshotRequest&) {
     return GetSnapshotResponse{};
 }
 
-Response BackupService::handle(const RemoveSnapshotRequest&) {
-    return AckResponse{};
+Response BackupService::handle(const RemoveSnapshotRequest& request) {
+    return toResponse(
+        resolveSnapshotTarget(request.backupName)
+            .and_then([&](const SnapshotTarget& target) {
+                return target.store
+                    .remove(
+                        target.destination, request.backupName, request.uuid
+                    )
+                    .transform([]() -> Response { return AckResponse{}; });
+            })
+    );
+}
+
+Result<BackupService::SnapshotTarget> BackupService::resolveSnapshotTarget(
+    const Str& backupName
+) {
+    const auto backup = m_ports.backupRepo().get(backupName);
+    if (not backup) {
+        return Error::unexpected(
+            kc::ErrorCode::invalidArgument, "Backup plan not found"
+        );
+    }
+    auto* store = m_ports.snapshotStores().get(backup->plan.destination.type);
+    if (not store) {
+        return Error::unexpected(
+            kc::ErrorCode::invalidArgument, "Snapshot store not found"
+        );
+    }
+    return SnapshotTarget{*store, backup->plan.destination};
 }
 
 Result<BackupRunArgs> BackupService::preflightBackup(const Backup& backup) {

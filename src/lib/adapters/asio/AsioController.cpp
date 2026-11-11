@@ -46,8 +46,10 @@ ResponsePtr translateResponse(const Response& request) {
             [](const GetBackupsResponse& res) -> ResponsePtr {
                 return std::make_unique<proto::GetBackupsResponse>(res.backups);
             },
-            [](const GetSnapshotsResponse&) -> ResponsePtr {
-                return std::make_unique<proto::GetSnapshotsResponse>();
+            [](const GetSnapshotsResponse& response) -> ResponsePtr {
+                return std::make_unique<proto::GetSnapshotsResponse>(
+                    response.snapshots
+                );
             },
             [](const GetSnapshotResponse&) -> ResponsePtr {
                 return std::make_unique<proto::GetSnapshotResponse>();

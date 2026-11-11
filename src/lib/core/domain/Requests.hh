@@ -3,6 +3,7 @@
 #include <variant>
 
 #include "Backup.hh"
+#include "Snapshot.hh"
 #include "core/Core.hh"
 #include "core/Error.hh"
 
@@ -35,7 +36,9 @@ struct RemoveSnapshotRequest {
     Uuid uuid;
 };
 
-struct GetSnapshotsResponse {};
+struct GetSnapshotsResponse {
+    std::vector<SnapshotSummary> snapshots;
+};
 struct GetSnapshotResponse {};
 
 struct GetBackupsResponse {

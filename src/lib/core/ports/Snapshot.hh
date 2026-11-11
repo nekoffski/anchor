@@ -13,7 +13,8 @@
 namespace anchor {
 
 struct SnapshotArgs {
-    const Str& name;
+    Uuid uuid;
+    Str backupName;
     std::span<const SourceTree> trees;
     const kc::Path& workspace;
 };
@@ -33,6 +34,12 @@ class SnapshotStore : public kc::NonCopyable, public kc::NonMovable {
 
     virtual Result<SnapshotMetadata> put(
         const SnapshotMetadata& metadata, const Location& destination
+    ) = 0;
+    virtual Result<std::vector<SnapshotSummary>> list(
+        const Location& destination, const Str& backupName
+    ) const = 0;
+    virtual Result<void> remove(
+        const Location& destination, const Str& backupName, const Uuid& uuid
     ) = 0;
 };
 

@@ -60,14 +60,7 @@ class ArchiveWriter : public SnapshotWriter {
         if (not opened) {
             return Error::unexpected(opened.error());
         }
-        auto snapshot = SnapshotBuilder{m_fs}.write(args, m_output, *this);
-        if (not snapshot) {
-            return Error::unexpected(snapshot.error());
-        }
-        if (auto r = finish(); not r) {
-            return Error::unexpected(r.error());
-        }
-        return snapshot;
+        return SnapshotBuilder{m_fs}.write(args, m_output, *this, format);
     }
 
    private:
@@ -163,7 +156,7 @@ class ArchiveWriter : public SnapshotWriter {
             });
     }
 
-    Result<void> finish() {
+    Result<void> finish() override {
         return kc::pipeline(
             [&] {
                 return check(
@@ -258,7 +251,10 @@ ArchiveSnapshotter::ArchiveSnapshotter(
 Result<SnapshotMetadata> ArchiveSnapshotter::snapshot(
     const SnapshotArgs& args
 ) {
-    const auto name = args.name + "." + archiveTypeToStr(m_format);
+    if (auto r = validateSnapshotArgs(args); not r) {
+        return Error::unexpected(r.error());
+    }
+    const auto name = args.uuid + "." + archiveTypeToStr(m_format);
     const auto output = kc::Path::join(args.workspace, name);
     ArchiveWriter writer{m_fs};
     return writer.write(m_format, output, args)

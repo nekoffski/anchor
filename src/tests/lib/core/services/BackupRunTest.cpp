@@ -15,8 +15,8 @@ class BackupRunTest : public Test {
     BackupPlan backup = plan();
     Path workspace{"/workspace"};
     SnapshotMetadata metadata{
-        "snapshot", Location::local("/workspace/snapshot"),
-        SnapshotManifest{.name = "snapshot"}, Str(64, 'a')
+        "snapshot", Location::local("/workspace/snapshot"), SnapshotManifest{},
+        Str(64, 'a')
     };
     Str created;
     Uuid runUuid;
@@ -74,7 +74,8 @@ TEST_F(BackupRunTest, SuccessTransitionsInOrderAndCleansWorkspace) {
     EXPECT_CALL(snapshotter, snapshot(_))
         .WillOnce(
             Invoke([&](const SnapshotArgs& args) -> Result<SnapshotMetadata> {
-                EXPECT_THAT(args.name, StartsWith(backup.name + "_"));
+                EXPECT_TRUE(kc::isValidUuid(args.uuid));
+                EXPECT_EQ(args.backupName, backup.name);
                 EXPECT_EQ(args.trees.size(), 1);
                 if (args.trees.size() == 1) {
                     const auto& tree = args.trees.front();
@@ -99,7 +100,7 @@ TEST_F(BackupRunTest, SuccessTransitionsInOrderAndCleansWorkspace) {
             [&](const SnapshotMetadata& snapshot,
                 const Location& destination) -> Result<SnapshotMetadata> {
                 EXPECT_EQ(snapshot.name, metadata.name);
-                EXPECT_EQ(snapshot.manifest.name, metadata.manifest.name);
+                EXPECT_EQ(snapshot.manifest.uuid, metadata.manifest.uuid);
                 EXPECT_EQ(snapshot.manifestSha256, metadata.manifestSha256);
                 EXPECT_EQ(destination.str(), backup.destination.str());
                 return metadata;

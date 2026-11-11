@@ -1,9 +1,7 @@
 #pragma once
 
-#include <kcore/io/FileSystem.hh>
+#include <mutex>
 
-#include "core/Error.hh"
-#include "core/domain/Snapshot.hh"
 #include "core/ports/Snapshot.hh"
 
 namespace anchor {
@@ -15,9 +13,21 @@ class OnDiskSnapshotStore : public SnapshotStore {
     Result<SnapshotMetadata> put(
         const SnapshotMetadata& metadata, const Location& destination
     ) override;
+    Result<std::vector<SnapshotSummary>> list(
+        const Location& destination, const Str& backupName
+    ) const override;
+    Result<void> remove(
+        const Location& destination, const Str& backupName, const Uuid& uuid
+    ) override;
 
    private:
+    Result<void> publishUpload(
+        const kc::Path& root, const kc::Path& source,
+        const SnapshotSummary& snapshot, const Str& manifestContents
+    );
+
     const kc::FileSystem& m_fs;
+    mutable std::mutex m_mutex;
 };
 
 }  // namespace anchor

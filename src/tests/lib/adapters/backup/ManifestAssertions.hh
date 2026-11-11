@@ -10,6 +10,14 @@
 
 namespace anchor::test {
 
+inline kc::Path snapshotManifestPath(const SnapshotMetadata& snapshot) {
+    const kc::Path path{snapshot.location.path};
+    const auto name = snapshot.manifest.format == ArchiveType::directory
+                          ? path.filenameWithExtension()
+                          : path.filename();
+    return kc::Path::join(path.parent(), name + ".json");
+}
+
 inline Str referenceSha256(const Str& bytes) {
     std::array<unsigned char, SHA256_DIGEST_LENGTH> digest{};
     EXPECT_NE(
@@ -38,7 +46,10 @@ inline void expectManifestResult(
     const auto json = kc::Json::parse(bytes);
     const auto& manifest = snapshot.manifest;
     EXPECT_EQ(manifest.version, json["version"].get<u32>());
-    EXPECT_EQ(manifest.name, json["name"].get<Str>());
+    EXPECT_FALSE(json.contains("name"));
+    EXPECT_EQ(manifest.uuid, json["uuid"].get<Str>());
+    EXPECT_EQ(manifest.backupName, json["backup_name"].get<Str>());
+    EXPECT_EQ(archiveTypeToStr(manifest.format), json["format"].get<Str>());
     EXPECT_EQ(
         manifest.created.time_since_epoch().count(),
         json["created_at_ns"].get<i64>()

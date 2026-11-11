@@ -2,6 +2,8 @@
 
 #include <kcore/Random.hh>
 
+#include "adapters/serialization/SnapshotJson.hh"
+
 namespace anchor::proto {
 namespace {
 
@@ -50,7 +52,7 @@ kc::Json GetSnapshotsRequest::serializeBody() const {
 GetSnapshotRequest::GetSnapshotRequest(const Str& backupName, const Uuid& uuid)
     : MessageImpl("GetSnapshotRequest"),
       m_backupName(backupName),
-      m_uuid(uuid) {}
+      m_uuid(kc::parseUuid(uuid).value_or(uuid)) {}
 
 Result<std::unique_ptr<GetSnapshotRequest>> GetSnapshotRequest::create(
     const kc::Json& body
@@ -72,7 +74,7 @@ RemoveSnapshotRequest::RemoveSnapshotRequest(
 )
     : MessageImpl("RemoveSnapshotRequest"),
       m_backupName(backupName),
-      m_uuid(uuid) {}
+      m_uuid(kc::parseUuid(uuid).value_or(uuid)) {}
 
 Result<std::unique_ptr<RemoveSnapshotRequest>> RemoveSnapshotRequest::create(
     const kc::Json& body
@@ -92,19 +94,37 @@ kc::Json RemoveSnapshotRequest::serializeBody() const {
 GetSnapshotsResponse::GetSnapshotsResponse()
     : MessageImpl("GetSnapshotsResponse") {}
 
+GetSnapshotsResponse::GetSnapshotsResponse(
+    std::span<const SnapshotSummary> snapshots
+)
+    : MessageImpl("GetSnapshotsResponse"),
+      m_snapshots(snapshots.begin(), snapshots.end()) {}
+
 Result<std::unique_ptr<GetSnapshotsResponse>> GetSnapshotsResponse::create(
     const kc::Json& body
 ) {
-    if (not body.is_array() || not body.empty()) {
+    if (not body.is_array()) {
         return Error::unexpected(
-            kc::ErrorCode::invalidArgument, "Expected an empty snapshot list"
+            kc::ErrorCode::invalidArgument, "Expected an array of snapshots"
         );
     }
-    return std::make_unique<GetSnapshotsResponse>();
+    std::vector<SnapshotSummary> snapshots;
+    for (const auto& value : body) {
+        auto snapshot = parseSnapshotSummary(value);
+        if (not snapshot) {
+            return Error::unexpected(snapshot.error());
+        }
+        snapshots.push_back(std::move(*snapshot));
+    }
+    return std::make_unique<GetSnapshotsResponse>(snapshots);
 }
 
 kc::Json GetSnapshotsResponse::serializeBody() const {
-    return kc::Json::array();
+    auto body = kc::Json::array();
+    for (const auto& snapshot : m_snapshots) {
+        body.push_back(serializeSnapshotSummary(snapshot));
+    }
+    return body;
 }
 
 GetSnapshotResponse::GetSnapshotResponse()

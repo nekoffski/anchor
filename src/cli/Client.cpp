@@ -39,7 +39,7 @@ Result<void> Client::send(const proto::Message& message) {
 }
 
 Result<std::unique_ptr<proto::Message>> Client::receive() {
-    static constexpr u64 maxMessageSize = 1024 * 32;
+    static constexpr u64 maxMessageSize = 16 * 1024 * 1024;
     static constexpr char delimiter = '\n';
 
     std::error_code ec;

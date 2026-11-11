@@ -27,5 +27,8 @@ _Avoid_: Backup run
 **Snapshot manifest**:
 An inventory of one snapshot's contents and their source origins, including file content hashes, for verification and restoration.
 
+**Snapshot store**:
+A destination holding snapshots that can be discovered and removed.
+
 **Source**:
 A filesystem root and the selections of files and directories to capture relative to that root.

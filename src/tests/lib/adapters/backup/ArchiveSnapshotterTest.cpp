@@ -5,6 +5,7 @@
 
 #include <array>
 #include <csignal>
+#include <kcore/Random.hh>
 #include <kcore/serialization/Json.hh>
 #include <map>
 
@@ -105,15 +106,15 @@ TEST_P(ArchiveSnapshotterTest, IncludesContentsOfSelectedDirectory) {
     const auto tree =
         SourceTreeBuilder::build(fs, Source{path("source"), {"assets"}});
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
     auto snapshot =
-        snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_TRUE(snapshot) << snapshot.error().message();
     auto contents = readArchive(snapshot->location.path);
     ASSERT_TRUE(contents) << contents.error().message();
     expectManifestResult(
-        *snapshot, contents->entries.at("manifest.json").contents
+        *snapshot, *fs.readFile(snapshotManifestPath(*snapshot))
     );
     ASSERT_TRUE(contents->entries.contains("0/assets/nested/data.txt"));
     EXPECT_EQ(
@@ -136,10 +137,10 @@ TEST_P(
         }
     };
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
     auto snapshot =
-        snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_FALSE(snapshot);
     EXPECT_EQ(snapshot.error().code(), ErrorCode::archiverFailure);
     EXPECT_THAT(snapshot.error().message(), testing::HasSubstr("missing"));
@@ -176,12 +177,12 @@ TEST_P(
             }
     );
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
     auto snapshot =
-        snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_TRUE(snapshot) << snapshot.error().message();
-    EXPECT_EQ(snapshot->name, "daily." + archiveTypeToStr(GetParam()));
+    EXPECT_EQ(snapshot->name, uuid + "." + archiveTypeToStr(GetParam()));
     EXPECT_EQ(
         snapshot->location.path, Path::join(workspace, snapshot->name).str()
     );
@@ -189,7 +190,7 @@ TEST_P(
     auto contents = readArchive(snapshot->location.path);
     ASSERT_TRUE(contents) << contents.error().message();
     expectManifestResult(
-        *snapshot, contents->entries.at("manifest.json").contents
+        *snapshot, *fs.readFile(snapshotManifestPath(*snapshot))
     );
     EXPECT_EQ(
         contents->format,
@@ -199,7 +200,7 @@ TEST_P(
         contents->filter, GetParam() == ArchiveType::zip ? ARCHIVE_FILTER_NONE
                                                          : ARCHIVE_FILTER_GZIP
     );
-    ASSERT_EQ(contents->entries.size(), 7);
+    ASSERT_EQ(contents->entries.size(), 6);
     EXPECT_EQ(contents->entries.at("0/docs/data.bin").contents, binary);
     EXPECT_EQ(contents->entries.at("0/empty-file").contents, "");
     EXPECT_EQ(contents->entries.at("0/empty-directory").type, AE_IFDIR);
@@ -222,16 +223,16 @@ TEST_P(ArchiveSnapshotterTest, KeepsDirectoriesSeparateAcrossSources) {
     };
     const auto trees = SourceTreeBuilder::build(fs, sources);
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
-    auto snapshot = snapshotter.snapshot({name, trees, workspace});
+    auto snapshot = snapshotter.snapshot({uuid, "daily", trees, workspace});
     ASSERT_TRUE(snapshot) << snapshot.error().message();
     auto contents = readArchive(snapshot->location.path);
     ASSERT_TRUE(contents) << contents.error().message();
     expectManifestResult(
-        *snapshot, contents->entries.at("manifest.json").contents
+        *snapshot, *fs.readFile(snapshotManifestPath(*snapshot))
     );
-    ASSERT_EQ(contents->entries.size(), 7);
+    ASSERT_EQ(contents->entries.size(), 6);
     EXPECT_EQ(contents->entries.at("0/docs/one").contents, "first");
     EXPECT_EQ(contents->entries.at("1/docs/two").contents, "second");
 }
@@ -249,16 +250,16 @@ TEST_P(
     };
     const auto trees = SourceTreeBuilder::build(fs, sources);
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
-    auto snapshot = snapshotter.snapshot({name, trees, workspace});
+    auto snapshot = snapshotter.snapshot({uuid, "daily", trees, workspace});
     ASSERT_TRUE(snapshot) << snapshot.error().message();
     auto contents = readArchive(snapshot->location.path);
     ASSERT_TRUE(contents);
     EXPECT_EQ(contents->entries.at("0/file").contents, "first");
     EXPECT_EQ(contents->entries.at("1/file").contents, "second");
     const auto manifest =
-        Json::parse(contents->entries.at("manifest.json").contents);
+        Json::parse(*fs.readFile(snapshotManifestPath(*snapshot)));
     ASSERT_EQ(manifest["sources"].size(), 2);
     EXPECT_EQ(manifest["sources"][0]["root"], path("first").str());
     EXPECT_EQ(manifest["sources"][1]["root"], path("second").str());
@@ -267,20 +268,20 @@ TEST_P(
 TEST_P(ArchiveSnapshotterTest, EmptySelectionsProduceReadableArchives) {
     ASSERT_TRUE(fs.createDirectory(path("workspace")));
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    const Str name = "empty";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
     const std::vector<SourceTree> trees{{.root = path("missing"), .nodes = {}}};
-    auto snapshot = snapshotter.snapshot({name, trees, workspace});
+    auto snapshot = snapshotter.snapshot({uuid, "daily", trees, workspace});
     ASSERT_TRUE(snapshot) << snapshot.error().message();
     auto contents = readArchive(snapshot->location.path);
     ASSERT_TRUE(contents) << contents.error().message();
     expectManifestResult(
-        *snapshot, contents->entries.at("manifest.json").contents
+        *snapshot, *fs.readFile(snapshotManifestPath(*snapshot))
     );
-    ASSERT_EQ(contents->entries.size(), 2);
+    ASSERT_EQ(contents->entries.size(), 1);
     EXPECT_TRUE(contents->entries.contains("0"));
     const auto manifest =
-        Json::parse(contents->entries.at("manifest.json").contents);
+        Json::parse(*fs.readFile(snapshotManifestPath(*snapshot)));
     ASSERT_EQ(manifest["sources"].size(), 1);
     EXPECT_TRUE(manifest["sources"][0]["entries"].empty());
 }
@@ -293,10 +294,10 @@ TEST_P(ArchiveSnapshotterTest, UsesCompression) {
     const auto tree =
         SourceTreeBuilder::build(fs, Source{path("source"), {"large"}});
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    const Str name = "compressed";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
     auto snapshot =
-        snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_TRUE(snapshot) << snapshot.error().message();
     auto size = fs.fileSize(snapshot->location.path);
     ASSERT_TRUE(size);
@@ -304,7 +305,7 @@ TEST_P(ArchiveSnapshotterTest, UsesCompression) {
     auto contents = readArchive(snapshot->location.path);
     ASSERT_TRUE(contents) << contents.error().message();
     expectManifestResult(
-        *snapshot, contents->entries.at("manifest.json").contents
+        *snapshot, *fs.readFile(snapshotManifestPath(*snapshot))
     );
     EXPECT_EQ(contents->entries.at("0/large").contents, data);
 }
@@ -326,17 +327,17 @@ TEST_P(
     const auto tree =
         SourceTreeBuilder::build(fs, Source{path("source"), {"assets"}});
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    const Str name = "links";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
     auto snapshot =
-        snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_TRUE(snapshot) << snapshot.error().message();
     auto contents = readArchive(snapshot->location.path);
     ASSERT_TRUE(contents) << contents.error().message();
     expectManifestResult(
-        *snapshot, contents->entries.at("manifest.json").contents
+        *snapshot, *fs.readFile(snapshotManifestPath(*snapshot))
     );
-    ASSERT_EQ(contents->entries.size(), 7);
+    ASSERT_EQ(contents->entries.size(), 6);
     EXPECT_EQ(contents->entries.at("0/assets/link").type, AE_IFLNK);
     EXPECT_EQ(contents->entries.at("0/assets/link").target, "file");
     EXPECT_EQ(contents->entries.at("0/assets/broken").target, "missing");
@@ -353,15 +354,15 @@ TEST_P(ArchiveSnapshotterTest, PreservesUtf8Filenames) {
         fs, Source{path("source"), {"zażółć.txt", longName}}
     );
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    const Str name = "unicode";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
     auto snapshot =
-        snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_TRUE(snapshot) << snapshot.error().message();
     auto contents = readArchive(snapshot->location.path);
     ASSERT_TRUE(contents) << contents.error().message();
     expectManifestResult(
-        *snapshot, contents->entries.at("manifest.json").contents
+        *snapshot, *fs.readFile(snapshotManifestPath(*snapshot))
     );
     EXPECT_EQ(contents->entries.at("0/zażółć.txt").contents, "unicode");
     EXPECT_EQ(contents->entries.at("0/" + longName).contents, "long path");
@@ -369,9 +370,9 @@ TEST_P(ArchiveSnapshotterTest, PreservesUtf8Filenames) {
 
 TEST_P(ArchiveSnapshotterTest, InvalidOutputDirectoryReturnsAnError) {
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("missing/workspace");
-    auto snapshot = snapshotter.snapshot({name, {}, workspace});
+    auto snapshot = snapshotter.snapshot({uuid, "daily", {}, workspace});
     ASSERT_FALSE(snapshot);
     EXPECT_EQ(snapshot.error().code(), ErrorCode::archiverFailure);
     EXPECT_THAT(
@@ -386,7 +387,7 @@ TEST_P(
     ASSERT_TRUE(fs.createDirectory(path("workspace")));
     ASSERT_TRUE(fs.writeFile(path("outside"), "outside"));
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    const Str name = "invalid";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
     SourceTree tree{
         .root = path("source"),
@@ -398,7 +399,7 @@ TEST_P(
         }
     };
     auto snapshot =
-        snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_FALSE(snapshot);
     EXPECT_THAT(
         snapshot.error().message(),
@@ -413,8 +414,10 @@ TEST_P(
                     .name = "pipe"
                 }
     );
-    const Str pipeName = "pipe";
-    snapshot = snapshotter.snapshot({pipeName, std::span{&tree, 1}, workspace});
+    const Uuid pipeUuid = RandomEngine::get().uuid();
+    snapshot = snapshotter.snapshot(
+        {pipeUuid, "daily", std::span{&tree, 1}, workspace}
+    );
     ASSERT_FALSE(snapshot);
     EXPECT_THAT(snapshot.error().message(), testing::HasSubstr("pipe"));
 }
@@ -424,10 +427,10 @@ TEST_P(ArchiveSnapshotterTest, RejectsIncludingItsOwnOutput) {
     const auto tree =
         SourceTreeBuilder::build(fs, Source{path("source"), {"workspace"}});
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("source/workspace");
     auto snapshot =
-        snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_FALSE(snapshot);
     EXPECT_THAT(
         snapshot.error().message(),
@@ -437,13 +440,13 @@ TEST_P(ArchiveSnapshotterTest, RejectsIncludingItsOwnOutput) {
 
 TEST_P(ArchiveSnapshotterTest, ExistingOutputIsNotOverwritten) {
     ASSERT_TRUE(fs.createDirectory(path("workspace")));
-    const Str name = "existing";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
     const auto output =
-        Path::join(workspace, name + "." + archiveTypeToStr(GetParam()));
+        Path::join(workspace, uuid + "." + archiveTypeToStr(GetParam()));
     ASSERT_TRUE(fs.writeFile(output, "original snapshot"));
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    auto snapshot = snapshotter.snapshot({name, {}, workspace});
+    auto snapshot = snapshotter.snapshot({uuid, "daily", {}, workspace});
     ASSERT_FALSE(snapshot);
     auto contents = fs.readFile(output);
     ASSERT_TRUE(contents);
@@ -458,10 +461,10 @@ TEST_P(ArchiveSnapshotterTest, RejectsItsOwnOutputThroughASourceRootAlias) {
     const auto tree =
         SourceTreeBuilder::build(fs, Source{path("alias"), {"workspace"}});
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("source/workspace");
     auto snapshot =
-        snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_FALSE(snapshot);
     EXPECT_EQ(snapshot.error().code(), ErrorCode::archiverFailure);
 }
@@ -486,9 +489,9 @@ TEST_P(
         }
     } limit;
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    const Str name = "empty";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
-    auto snapshot = snapshotter.snapshot({name, {}, workspace});
+    auto snapshot = snapshotter.snapshot({uuid, "daily", {}, workspace});
     ASSERT_FALSE(snapshot);
     EXPECT_EQ(snapshot.error().code(), ErrorCode::archiverFailure);
     EXPECT_THAT(
@@ -511,10 +514,10 @@ TEST_P(
     const auto tree =
         SourceTreeBuilder::build(fs, Source{path("source"), {"link/file"}});
     ArchiveSnapshotter snapshotter{fs, GetParam()};
-    const Str name = "links";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
     auto snapshot =
-        snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_FALSE(snapshot);
     EXPECT_THAT(
         snapshot.error().message(),
@@ -549,9 +552,9 @@ TEST_P(
         EXPECT_CALL(mocked, openFile(_, FileMode::createNew))
             .WillOnce(Return(ByMove(std::move(output))));
         ArchiveSnapshotter snapshotter{mocked, GetParam()};
-        const Str name = "empty";
+        const Uuid uuid = RandomEngine::get().uuid();
         const auto workspace = path("workspace");
-        auto snapshot = snapshotter.snapshot({name, {}, workspace});
+        auto snapshot = snapshotter.snapshot({uuid, "daily", {}, workspace});
         ASSERT_FALSE(snapshot);
         EXPECT_EQ(snapshot.error().code(), ErrorCode::archiverFailure);
         EXPECT_THAT(
@@ -604,10 +607,11 @@ TEST_P(
                 return fs.openFile(output, mode);
             }));
         ArchiveSnapshotter snapshotter{mocked, GetParam()};
-        const Str name = failure;
+        const Uuid uuid = RandomEngine::get().uuid();
         const auto workspace = path("workspace");
-        auto snapshot =
-            snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+        auto snapshot = snapshotter.snapshot(
+            {uuid, "daily", std::span{&tree, 1}, workspace}
+        );
         ASSERT_FALSE(snapshot);
         EXPECT_EQ(snapshot.error().code(), ErrorCode::archiverFailure);
         EXPECT_THAT(snapshot.error().message(), HasSubstr(failure));
@@ -636,10 +640,10 @@ TEST_P(ArchiveSnapshotterTest, FileSystemPropagatesDirectoryListingFailures) {
             )
         ));
     ArchiveSnapshotter snapshotter{mocked, GetParam()};
-    const Str name = "listing";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
     auto snapshot =
-        snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_FALSE(snapshot);
     EXPECT_THAT(
         snapshot.error().message(), HasSubstr("directory listing failed")

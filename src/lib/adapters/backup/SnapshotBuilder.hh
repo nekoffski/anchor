@@ -4,6 +4,8 @@
 
 namespace anchor {
 
+Result<void> validateSnapshotArgs(const SnapshotArgs& args);
+
 class SnapshotWriter : public kc::NonCopyable, public kc::NonMovable {
    public:
     virtual ~SnapshotWriter() = default;
@@ -12,6 +14,7 @@ class SnapshotWriter : public kc::NonCopyable, public kc::NonMovable {
     ) = 0;
     virtual Result<void> writeData(std::span<const Byte> data) = 0;
     virtual Result<void> endEntry() = 0;
+    virtual Result<void> finish() = 0;
 };
 
 class SnapshotBuilder {
@@ -19,7 +22,8 @@ class SnapshotBuilder {
     explicit SnapshotBuilder(const kc::FileSystem& fs);
 
     Result<SnapshotMetadata> write(
-        const SnapshotArgs& args, const kc::Path& output, SnapshotWriter& writer
+        const SnapshotArgs& args, const kc::Path& output,
+        SnapshotWriter& writer, ArchiveType format
     ) const;
 
    private:

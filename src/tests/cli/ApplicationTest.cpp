@@ -306,7 +306,10 @@ TEST_F(CliTest, SnapshotInspectAndRemoveRetainBackupScopeAndUuid) {
             }
         ));
     EXPECT_EQ(run({"anchor", "snapshot", "remove", "daily", uuid}), 0);
-    EXPECT_EQ(output.str(), "Snapshot removal request acknowledged.\n");
+    EXPECT_EQ(
+        output.str(),
+        "Snapshot '12345678-1234-4234-8234-123456789abc' removed.\n"
+    );
     EXPECT_TRUE(errors.str().empty());
 }
 
@@ -376,6 +379,28 @@ TEST_F(CliTest, SnapshotCommandsReportUnexpectedResponsesAndDaemonErrors) {
     );
     EXPECT_EQ(errors.str(), "anchor: service stopped\n");
     EXPECT_TRUE(output.str().empty());
+}
+
+TEST_F(CliTest, SnapshotListRendersUuidUtcCreationTimeAndExactLocation) {
+    const auto snapshot = snapshotSummary();
+    EXPECT_CALL(client, request(_, _))
+        .WillOnce(Invoke(
+            [&](
+                u16, const proto::Message&
+            ) -> Result<std::unique_ptr<proto::Message>> {
+                const std::vector<SnapshotSummary> snapshots{snapshot};
+                return proto::Message::create(
+                    proto::GetSnapshotsResponse{snapshots}.serialize()
+                );
+            }
+        ));
+    EXPECT_EQ(run({"anchor", "snapshot", "list", "daily"}), 0);
+    EXPECT_EQ(
+        output.str(),
+        "Snapshot: 12345678-1234-4234-8234-123456789abc\n  Created: "
+        "2023-11-14T22:13:20.000000000Z\n  Location: "
+        "local:///backups/daily/snapshot.zip\n"
+    );
 }
 
 }  // namespace anchor::test

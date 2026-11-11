@@ -1,6 +1,5 @@
 #include "DirectorySnapshotter.hh"
 
-#include <filesystem>
 #include <ranges>
 
 #include "SnapshotBuilder.hh"
@@ -13,7 +12,7 @@ class DirectoryWriter : public SnapshotWriter {
     DirectoryWriter(const kc::FileSystem& fs, const kc::Path& root)
         : m_fs(fs), m_root(root) {}
 
-    Result<void> finish() {
+    Result<void> finish() override {
         for (const auto& [path, info] : m_directories | std::views::reverse) {
             if (auto r = applyMetadata(path, info); not r) {
                 return r;
@@ -32,20 +31,8 @@ class DirectoryWriter : public SnapshotWriter {
             case kc::FileInfo::Type::directory:
                 m_directories.emplace_back(m_path, info);
                 return m_fs.createDirectory(m_path);
-            case kc::FileInfo::Type::symlink: {
-                std::error_code error;
-                std::filesystem::create_symlink(
-                    info.linkTarget, m_path.str(), error
-                );
-                if (error) {
-                    return Error::unexpected(
-                        kc::ErrorCode::fileSystemError,
-                        "Could not create symlink '{}': {}", m_path.str(),
-                        error.message()
-                    );
-                }
-                return {};
-            }
+            case kc::FileInfo::Type::symlink:
+                return m_fs.createSymlink(info.linkTarget, m_path);
             case kc::FileInfo::Type::regular: {
                 auto file = m_fs.openFile(m_path, kc::FileMode::createNew);
                 if (not file) {
@@ -108,7 +95,10 @@ DirectorySnapshotter::DirectorySnapshotter(const kc::FileSystem& fs)
 Result<SnapshotMetadata> DirectorySnapshotter::snapshot(
     const SnapshotArgs& args
 ) {
-    const auto path = kc::Path::join(args.workspace, args.name);
+    if (auto r = validateSnapshotArgs(args); not r) {
+        return Error::unexpected(r.error());
+    }
+    const auto path = kc::Path::join(args.workspace, args.uuid);
     if (m_fs.exists(path)) {
         return Error::unexpected(
             kc::ErrorCode::fileSystemError, "Snapshot already exists: '{}'",
@@ -119,14 +109,9 @@ Result<SnapshotMetadata> DirectorySnapshotter::snapshot(
         return Error::unexpected(r.error());
     }
     DirectoryWriter writer{m_fs, path};
-    auto snapshot = SnapshotBuilder{m_fs}.write(args, path, writer);
-    if (not snapshot) {
-        return Error::unexpected(snapshot.error());
-    }
-    if (auto r = writer.finish(); not r) {
-        return Error::unexpected(r.error());
-    }
-    return snapshot;
+    return SnapshotBuilder{m_fs}.write(
+        args, path, writer, ArchiveType::directory
+    );
 }
 
 }  // namespace anchor

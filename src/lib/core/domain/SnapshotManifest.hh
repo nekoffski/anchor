@@ -3,6 +3,7 @@
 #include <chrono>
 #include <vector>
 
+#include "Backup.hh"
 #include "core/Core.hh"
 
 namespace anchor {
@@ -28,10 +29,15 @@ struct SnapshotSource {
 };
 
 struct SnapshotManifest {
-    u32 version{1};
-    Str name;
+    static constexpr u32 currentVersion = 1;
+    static constexpr auto hashAlgorithm = "sha256";
+
+    u32 version{currentVersion};
     std::chrono::sys_time<std::chrono::nanoseconds> created;
     std::vector<SnapshotSource> sources;
+    Uuid uuid;
+    Str backupName;
+    ArchiveType format{ArchiveType::directory};
 };
 
 }  // namespace anchor

@@ -93,6 +93,8 @@ With the daemon running:
 anchor backup list
 anchor backup trigger personal
 anchor backup reload
+anchor snapshot list personal
+anchor snapshot remove personal SNAPSHOT_UUID
 ```
 
 `list` shows each backup's enabled flag, latest run state, run ID, and failure
@@ -134,12 +136,12 @@ paths are preserved inside a numbered source directory in the snapshot, such
 as `0/Documents/notes.txt`. Source numbers follow the plan's source order.
 
 `$HOME` is expanded in source roots and local destination paths. The destination
-receives a separate directory or archive file for each snapshot. Create the
-destination directory before running a backup.
+receives a directory per backup containing UUID-named payloads and JSON manifests.
+Create the destination directory before running a backup.
 
 Use `archive: zip` or `archive: tgz` to store a compressed archive instead of a
-directory. Each snapshot contains `manifest.json` alongside its numbered source
-directories, including inside ZIP and TGZ archives. The manifest records source
+directory. Each snapshot has a `UUID.json` manifest next to its payload; archives
+contain only the numbered source directories. The manifest records source
 roots, entries, restoration metadata, and SHA-256 hashes of captured file bytes.
 The format is described in [docs/snapshots.md](docs/snapshots.md).
 Selected directories include their contents recursively; original permissions

@@ -81,7 +81,9 @@ class Workspace:
         return target
 
     def snapshots(self, name: str, *, destination: Path | None = None) -> list[Path]:
-        return sorted((destination or self.destination).glob(f"{name}_*"))
+        directory = (destination or self.destination) / name
+        return sorted(path for path in directory.glob("*")
+                      if not path.name.startswith(".") and path.suffix != ".json")
 
     def assert_runs_cleaned(self) -> None:
         remaining = list(self.runs.iterdir())

@@ -37,10 +37,12 @@ def assert_snapshot_files(
                         actual[member.name] = source.read()
     else:
         raise AssertionError(f"Unrecognized snapshot format: {snapshot}")
-    manifest_bytes = actual.pop("manifest.json", None)
-    assert manifest_bytes is not None, f"Missing manifest in {snapshot}"
-    manifest = json.loads(manifest_bytes)
+    manifest_path = snapshot.with_suffix(".json")
+    assert manifest_path.is_file(), f"Missing manifest next to {snapshot}"
+    manifest = json.loads(manifest_path.read_bytes())
     assert manifest["version"] == 1
+    assert manifest["uuid"] == snapshot.stem
+    assert manifest["backup_name"] == snapshot.parent.name
     assert manifest["hash_algorithm"] == "sha256"
     recorded: set[str] = set()
     for index, source in enumerate(manifest["sources"]):

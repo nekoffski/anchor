@@ -1,7 +1,9 @@
+#include <kcore/Random.hh>
 #include <kcore/serialization/Json.hh>
 
 #include "ManifestAssertions.hh"
 #include "TestSupport.hh"
+#include "adapters/backup/ArchiveSnapshotter.hh"
 #include "adapters/backup/DirectorySnapshotter.hh"
 #include "adapters/backup/OnDiskSnapshotStore.hh"
 #include "core/Error.hh"
@@ -36,16 +38,16 @@ TEST_F(SnapshotTest, CopiesNestedFilesAndDirectoryLeavesAcrossSources) {
     };
     const auto trees = SourceTreeBuilder::build(fs, sources);
     DirectorySnapshotter snapshotter{fs};
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
-    auto snapshot = snapshotter.snapshot({name, trees, workspace});
+    auto snapshot = snapshotter.snapshot({uuid, "daily", trees, workspace});
     ASSERT_TRUE(snapshot);
-    EXPECT_EQ(snapshot->name, name);
+    EXPECT_EQ(snapshot->name, uuid);
     EXPECT_EQ(snapshot->location.type, LocationType::local);
     const auto snapshotPath = Path::join(workspace, snapshot->name);
     EXPECT_EQ(snapshot->location.path, snapshotPath.str());
     expectManifestResult(
-        *snapshot, *fs.readFile(Path::join(snapshotPath, "manifest.json"))
+        *snapshot, *fs.readFile(snapshotManifestPath(*snapshot))
     );
     for (const auto& [relative, content] : std::vector<std::pair<Str, Str>>{
              {"0/docs/one.txt", "one"},
@@ -69,16 +71,16 @@ TEST_F(SnapshotTest, CopiesNestedFilesAndDirectoryLeavesAcrossSources) {
 
 TEST_F(SnapshotTest, EmptySourcesProduceAManifest) {
     DirectorySnapshotter snapshotter{fs};
-    const Str name = "empty";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
-    auto result = snapshotter.snapshot({name, {}, workspace});
+    auto result = snapshotter.snapshot({uuid, "daily", {}, workspace});
     ASSERT_TRUE(result);
-    auto json = fs.readFile(Path::join(result->location.path, "manifest.json"));
+    auto json = fs.readFile(snapshotManifestPath(*result));
     ASSERT_TRUE(json);
     expectManifestResult(*result, *json);
     auto manifest = Json::parse(*json);
-    EXPECT_EQ(manifest["version"], 1);
-    EXPECT_EQ(manifest["name"], name);
+    EXPECT_EQ(manifest["version"], SnapshotManifest::currentVersion);
+    EXPECT_EQ(manifest["uuid"], uuid);
     EXPECT_TRUE(manifest["sources"].empty());
 }
 
@@ -89,15 +91,13 @@ TEST_F(SnapshotTest, EmptySourcesKeepTheirIndicesAndOriginalRoots) {
         SourceTreeBuilder::build(fs, Source{path("source"), {"file"}});
     const std::vector<SourceTree> trees{{.root = path("missing")}, selected};
     DirectorySnapshotter snapshotter{fs};
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
-    auto result = snapshotter.snapshot({name, trees, workspace});
+    auto result = snapshotter.snapshot({uuid, "daily", trees, workspace});
     ASSERT_TRUE(result);
     EXPECT_TRUE(fs.isDirectory(Path::join(result->location.path, "0")));
     EXPECT_EQ(*fs.readFile(Path::join(result->location.path, "1/file")), "abc");
-    auto manifest = Json::parse(
-        *fs.readFile(Path::join(result->location.path, "manifest.json"))
-    );
+    auto manifest = Json::parse(*fs.readFile(snapshotManifestPath(*result)));
     ASSERT_EQ(manifest["sources"].size(), 2);
     EXPECT_EQ(manifest["sources"][0]["root"], path("missing").str());
     EXPECT_TRUE(manifest["sources"][0]["entries"].empty());
@@ -118,9 +118,9 @@ TEST(DirectorySnapshotter, CreationFailureStopsBeforeCopying) {
         .WillOnce(Return(
             Error::unexpected(kc::ErrorCode::fileSystemError, "mkdir failed")
         ));
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const Path workspace{"/workspace"};
-    auto result = snapshotter.snapshot({name, {}, workspace});
+    auto result = snapshotter.snapshot({uuid, "daily", {}, workspace});
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().code(), kc::ErrorCode::fileSystemError);
     EXPECT_EQ(result.error().message(), "mkdir failed");
@@ -142,9 +142,10 @@ TEST_F(SnapshotTest, NestedDirectoryCreationFailurePreservesError) {
     auto tree =
         SourceTreeBuilder::build(fs, Source{path("source"), {"docs/file"}});
     DirectorySnapshotter snapshotter{failing};
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
-    auto result = snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+    auto result =
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().message(), "nested mkdir failed");
 }
@@ -166,12 +167,13 @@ TEST_F(SnapshotTest, InputFailureDoesNotProduceACompleteManifest) {
     ASSERT_TRUE(fs.writeFile(path("source/file"), "data"));
     auto tree = SourceTreeBuilder::build(fs, Source{path("source"), {"file"}});
     DirectorySnapshotter snapshotter{failing};
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
-    auto result = snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+    auto result =
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().message(), "input unavailable");
-    EXPECT_FALSE(fs.exists(Path::join(workspace, "daily/manifest.json")));
+    EXPECT_FALSE(fs.exists(Path::join(workspace, uuid + ".json")));
 }
 
 TEST_F(SnapshotTest, DirectoryListingFailurePreservesError) {
@@ -186,9 +188,10 @@ TEST_F(SnapshotTest, DirectoryListingFailurePreservesError) {
     auto tree =
         SourceTreeBuilder::build(fs, Source{path("source"), {"assets"}});
     DirectorySnapshotter snapshotter{failing};
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
-    auto result = snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+    auto result =
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().message(), "listing failed");
 }
@@ -232,16 +235,15 @@ TEST_F(
     const auto tree =
         SourceTreeBuilder::build(fs, Source{path("source"), {"file"}});
     DirectorySnapshotter snapshotter{changing};
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto workspace = path("workspace");
-    auto result = snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+    auto result =
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_TRUE(result);
     EXPECT_EQ(changing.reads, 1);
     EXPECT_EQ(*fs.readFile(path("source/file")), "changed after reading");
     EXPECT_EQ(*fs.readFile(Path::join(result->location.path, "0/file")), "abc");
-    auto manifest = Json::parse(
-        *fs.readFile(Path::join(result->location.path, "manifest.json"))
-    );
+    auto manifest = Json::parse(*fs.readFile(snapshotManifestPath(*result)));
     EXPECT_EQ(
         manifest["sources"][0]["entries"][0]["sha256"],
         "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
@@ -249,110 +251,40 @@ TEST_F(
 }
 
 TEST_F(SnapshotTest, ExistingDirectorySnapshotIsNotOverwritten) {
-    ASSERT_TRUE(fs.createDirectory(path("workspace/daily")));
-    ASSERT_TRUE(
-        fs.writeFile(path("workspace/daily/manifest.json"), "existing")
-    );
+    ASSERT_TRUE(fs.createDirectory(
+        path("workspace/12345678-1234-4234-8234-123456789abc")
+    ));
+    ASSERT_TRUE(fs.writeFile(
+        path("workspace/12345678-1234-4234-8234-123456789abc/existing.txt"),
+        "existing"
+    ));
     DirectorySnapshotter snapshotter{fs};
-    const Str name = "daily";
+    const Uuid uuid = "12345678-1234-4234-8234-123456789abc";
     const auto workspace = path("workspace");
-    EXPECT_FALSE(snapshotter.snapshot({name, {}, workspace}));
-    EXPECT_EQ(*fs.readFile(path("workspace/daily/manifest.json")), "existing");
+    EXPECT_FALSE(snapshotter.snapshot({uuid, "daily", {}, workspace}));
+    EXPECT_EQ(
+        *fs.readFile(
+            path("workspace/12345678-1234-4234-8234-123456789abc/existing.txt")
+        ),
+        "existing"
+    );
 }
 
-TEST_F(SnapshotTest, ManifestWriteOrCloseFailureFailsSnapshotCreation) {
-    struct FailingManifestFile : File {
-        explicit FailingManifestFile(bool failWrite) : failWrite(failWrite) {}
-        Result<size_t> read(std::span<Byte>) override { return 0; }
-        Result<void> write(std::span<const Byte>) override {
-            if (failWrite) {
-                return Error::unexpected(
-                    kc::ErrorCode::fileSystemError, "manifest write failed"
-                );
-            }
-            return {};
-        }
-        Result<void> close() override {
+TEST_F(SnapshotTest, ManifestPublicationFailureFailsSnapshotCreation) {
+    struct FailingManifest : FileSystem {
+        Result<void> writeFileAtomic(const Path&, const Str&) const override {
             return Error::unexpected(
-                kc::ErrorCode::fileSystemError, "manifest close failed"
+                kc::ErrorCode::fileSystemError, "manifest publication failed"
             );
         }
-        bool failWrite;
-    };
-    struct FailingManifest : FileSystem {
-        explicit FailingManifest(bool failWrite) : failWrite(failWrite) {}
-        Result<std::unique_ptr<File>> openFile(
-            const Path& path, FileMode mode
-        ) const override {
-            if (path.filenameWithExtension() == "manifest.json" &&
-                mode == FileMode::createNew) {
-                return std::make_unique<FailingManifestFile>(failWrite);
-            }
-            return FileSystem::openFile(path, mode);
-        }
-        bool failWrite;
-    };
-    for (const bool failWrite : {true, false}) {
-        FailingManifest failing{failWrite};
-        DirectorySnapshotter snapshotter{failing};
-        const Str name = failWrite ? "write" : "close";
-        const auto workspace = path("workspace");
-        auto result = snapshotter.snapshot({name, {}, workspace});
-        ASSERT_FALSE(result);
-        EXPECT_EQ(
-            result.error().message(),
-            failWrite ? "manifest write failed" : "manifest close failed"
-        );
-    }
-}
-
-TEST(OnDiskSnapshotStore, CopiesResolvedPathsAndReturnsDestinationMetadata) {
-    StrictMock<MockFileSystem> fs;
-    OnDiskSnapshotStore store{fs};
-    ScopedEnv environment{"ANCHOR_TEST_STORE", "/backup"};
-    SnapshotMetadata metadata{
-        "daily_123", Location::local("/workspace/daily_123"),
-        SnapshotManifest{.name = "daily_123"}, Str(64, 'a')
-    };
-    auto destination = Location::local("$ANCHOR_TEST_STORE");
-    EXPECT_CALL(fs, copyRecursive(_, _))
-        .WillOnce(Invoke([](const Path& from, const Path& to) -> Result<void> {
-            EXPECT_EQ(from.str(), "/workspace/daily_123");
-            EXPECT_EQ(to.str(), "/backup/daily_123");
-            return {};
-        }));
-    auto result = store.put(metadata, destination);
-    ASSERT_TRUE(result);
-    EXPECT_EQ(result->name, metadata.name);
-    EXPECT_EQ(result->manifest.name, metadata.manifest.name);
-    EXPECT_EQ(result->manifestSha256, metadata.manifestSha256);
-    EXPECT_EQ(result->location.str(), destination.str());
-    EXPECT_EQ(metadata.location.path, "/workspace/daily_123");
-}
-
-TEST(OnDiskSnapshotStore, RejectsRemoteDestinationBeforeCopying) {
-    StrictMock<MockFileSystem> fs;
-    OnDiskSnapshotStore store{fs};
-    auto result = store.put(
-        {"snapshot", Location::local("/source")}, Location::s3("bucket")
-    );
+    } failing;
+    DirectorySnapshotter snapshotter{failing};
+    const Uuid uuid = RandomEngine::get().uuid();
+    const auto workspace = path("workspace");
+    auto result = snapshotter.snapshot({uuid, "daily", {}, workspace});
     ASSERT_FALSE(result);
-    EXPECT_EQ(result.error().code(), kc::ErrorCode::invalidArgument);
-}
-
-TEST(OnDiskSnapshotStore, CopyFailureReturnsFilesystemError) {
-    StrictMock<MockFileSystem> fs;
-    OnDiskSnapshotStore store{fs};
-    EXPECT_CALL(fs, copyRecursive(_, _))
-        .WillOnce(Return(
-            Error::unexpected(kc::ErrorCode::fileSystemError, "copy failed")
-        ));
-    auto result = store.put(
-        {"snapshot", Location::local("/source")}, Location::local("/backup")
-    );
-    ASSERT_FALSE(result);
-    EXPECT_EQ(result.error().code(), kc::ErrorCode::fileSystemError);
-    EXPECT_THAT(result.error().message(), HasSubstr("/backup/snapshot"));
+    EXPECT_EQ(result.error().message(), "manifest publication failed");
+    EXPECT_FALSE(fs.exists(Path::join(workspace, uuid + ".json")));
 }
 
 TEST_F(SnapshotTest, DirectorySnapshotAndStorePreserveFileContents) {
@@ -361,12 +293,12 @@ TEST_F(SnapshotTest, DirectorySnapshotAndStorePreserveFileContents) {
     const Path destination = path("backups");
     ASSERT_TRUE(fs.createDirectory(workspace));
     ASSERT_TRUE(fs.createDirectory(destination));
-    const Str name = "daily";
+    const Uuid uuid = RandomEngine::get().uuid();
     const auto tree =
         SourceTreeBuilder::build(fs, Source{root, {"source.txt"}});
     DirectorySnapshotter snapshotter{fs};
     auto snapshot =
-        snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+        snapshotter.snapshot({uuid, "daily", std::span{&tree, 1}, workspace});
     ASSERT_TRUE(snapshot);
     const auto originalInfo = fs.info(path("source.txt"));
     const auto capturedInfo =
@@ -378,39 +310,52 @@ TEST_F(SnapshotTest, DirectorySnapshotAndStorePreserveFileContents) {
     OnDiskSnapshotStore store{fs};
     auto stored = store.put(*snapshot, Location::local(destination.str()));
     ASSERT_TRUE(stored);
-    auto content = fs.readFile(
-        Path::join(Path::join(destination, snapshot->name), "0/source.txt")
-    );
+    auto content =
+        fs.readFile(Path::join(stored->location.path, "0/source.txt"));
     ASSERT_TRUE(content);
     EXPECT_EQ(*content, "backup content");
-    const auto manifestPath =
-        Path::join(Path::join(destination, snapshot->name), "manifest.json");
+    const auto manifestPath = snapshotManifestPath(*stored);
     expectManifestResult(*stored, *fs.readFile(manifestPath));
     EXPECT_EQ(stored->manifestSha256, snapshot->manifestSha256);
-    EXPECT_EQ(stored->manifest.name, snapshot->manifest.name);
+    EXPECT_EQ(stored->manifest.uuid, snapshot->manifest.uuid);
 }
 
 TEST_F(SnapshotTest, EmptyIncludeCopiesTheWholeSourceRoot) {
     ASSERT_TRUE(fs.createDirectory(path("source/nested")));
     ASSERT_TRUE(fs.writeFile(path("source/nested/file.txt"), "whole root"));
     DirectorySnapshotter snapshotter{fs};
-    size_t index = 0;
     const auto workspace = path("workspace");
     for (const auto& includes : std::vector<std::vector<Str>>{
              {""}, {"", "nested/file.txt"}, {"nested/file.txt", ""}
          }) {
         SCOPED_TRACE(includes.front());
-        const auto name = fmt::format("daily_{}", index++);
+        const Uuid uuid = RandomEngine::get().uuid();
         const auto tree =
             SourceTreeBuilder::build(fs, Source{path("source"), includes});
-        auto snapshot =
-            snapshotter.snapshot({name, std::span{&tree, 1}, workspace});
+        auto snapshot = snapshotter.snapshot(
+            {uuid, "daily", std::span{&tree, 1}, workspace}
+        );
         ASSERT_TRUE(snapshot);
         auto copied = fs.readFile(
             Path::join(snapshot->location.path, "0/nested/file.txt")
         );
         ASSERT_TRUE(copied);
         EXPECT_EQ(*copied, "whole root");
+    }
+}
+
+TEST(SnapshotArgs, InvalidIdentitiesAreRejectedBeforeFilesystemAccess) {
+    StrictMock<MockFileSystem> fs;
+    DirectorySnapshotter directory{fs};
+    ArchiveSnapshotter archive{fs, ArchiveType::zip};
+    const Path workspace{"/unused"};
+    const std::vector<SnapshotArgs> invalid{
+        {"../escape", "daily", {}, workspace},
+        {"12345678-1234-4234-8234-123456789abc", "", {}, workspace},
+    };
+    for (const auto& args : invalid) {
+        EXPECT_FALSE(directory.snapshot(args));
+        EXPECT_FALSE(archive.snapshot(args));
     }
 }
 

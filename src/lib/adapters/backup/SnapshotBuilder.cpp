@@ -2,10 +2,11 @@
 
 #include <algorithm>
 #include <array>
+#include <kcore/Random.hh>
 #include <unordered_set>
 
-#include "SnapshotManifestJson.hh"
 #include "adapters/crypto/Sha256.hh"
+#include "adapters/serialization/SnapshotJson.hh"
 
 namespace anchor {
 namespace {
@@ -215,17 +216,31 @@ class SourceWriter {
 
 }  // namespace
 
+Result<void> validateSnapshotArgs(const SnapshotArgs& args) {
+    const auto uuid = kc::parseUuid(args.uuid);
+    if (not uuid || *uuid != args.uuid || args.backupName.empty()) {
+        return Error::unexpected(
+            kc::ErrorCode::invalidArgument,
+            "Expected a canonical snapshot UUID and a backup name"
+        );
+    }
+    return {};
+}
+
 SnapshotBuilder::SnapshotBuilder(const kc::FileSystem& fs) : m_fs(fs) {}
 
 Result<SnapshotMetadata> SnapshotBuilder::write(
-    const SnapshotArgs& args, const kc::Path& output, SnapshotWriter& writer
+    const SnapshotArgs& args, const kc::Path& output, SnapshotWriter& writer,
+    ArchiveType format
 ) const {
     SnapshotManifest manifest{
-        .name = args.name,
         .created = std::chrono::time_point_cast<std::chrono::nanoseconds>(
             std::chrono::system_clock::now()
         ),
     };
+    manifest.uuid = args.uuid;
+    manifest.backupName = args.backupName;
+    manifest.format = format;
     for (const auto& tree : args.trees) {
         auto root = tree.root.absolute();
         if (not root) {
@@ -265,19 +280,12 @@ Result<SnapshotMetadata> SnapshotBuilder::write(
     if (not digest) {
         return Error::unexpected(digest.error());
     }
-    kc::FileInfo info{
-        .type = kc::FileInfo::Type::regular,
-        .size = json->size(),
-        .permissions = 0600,
-        .modified = manifest.created,
-    };
-    if (auto r = writer.beginEntry("manifest.json", info); not r) {
+    if (auto r = writer.finish(); not r) {
         return Error::unexpected(r.error());
     }
-    if (auto r = writer.writeData(bytes); not r) {
-        return Error::unexpected(r.error());
-    }
-    if (auto r = writer.endEntry(); not r) {
+    const auto manifestPath =
+        kc::Path::join(output.parent(), args.uuid + ".json");
+    if (auto r = m_fs.writeFileAtomic(manifestPath, *json); not r) {
         return Error::unexpected(r.error());
     }
     return SnapshotMetadata{

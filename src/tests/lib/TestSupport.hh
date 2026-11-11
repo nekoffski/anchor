@@ -85,7 +85,14 @@ class MockFileSystem : public FileSystem {
         Result<std::vector<Path>>, listEntries, (const Path&), (const, override)
     );
     MOCK_METHOD(std::vector<Path>, glob, (const Str&), (const, override));
+    MOCK_METHOD(
+        Result<void>, rename, (const Path&, const Path&), (const, override)
+    );
     MOCK_METHOD(Result<Str>, readFile, (const Path&), (const, override));
+    MOCK_METHOD(
+        Result<void>, writeFileAtomic, (const Path&, const Str&),
+        (const, override)
+    );
     MOCK_METHOD(bool, isDirectory, (const Path&), (const, override));
     MOCK_METHOD(
         Result<std::vector<Path>>, listFiles, (const Path&), (const, override)
@@ -120,6 +127,14 @@ class MockSnapshotStore : public SnapshotStore {
         Result<SnapshotMetadata>, put,
         (const SnapshotMetadata&, const Location&), (override)
     );
+    MOCK_METHOD(
+        Result<std::vector<SnapshotSummary>>, list,
+        (const Location&, const Str&), (const, override)
+    );
+    MOCK_METHOD(
+        Result<void>, remove, (const Location&, const Str&, const Uuid&),
+        (override)
+    );
 };
 
 class MockPlanRepo : public BackupPlanRepo {
@@ -148,6 +163,16 @@ class MockExecutor : public Executor {
    public:
     MOCK_METHOD(void, call, (MoveOnlyFunction<void()>), (override));
 };
+
+inline SnapshotSummary snapshotSummary() {
+    return {
+        "12345678-1234-4234-8234-123456789abc",
+        std::chrono::sys_time<std::chrono::nanoseconds>{
+            std::chrono::seconds{1'700'000'000}
+        },
+        Location::local("/backups/daily/snapshot.zip")
+    };
+}
 
 inline BackupPlan plan() {
     return {
