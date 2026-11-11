@@ -46,70 +46,79 @@ class ArchiveWriter : public SnapshotWriter {
                 ErrorCode::archiverFailure, "Could not allocate archive writer"
             );
         }
-        auto opened = kc::pipeline(
-            [this] {
-                return check(
-                    m_archive.get(),
-                    archive_write_set_bytes_in_last_block(m_archive.get(), 1),
-                    "Could not configure archive output"
-                );
-            },
-            [this, format] { return configure(format); },
-            [this, &output] { return open(output); }
-        );
-        if (not opened) {
-            return Error::unexpected(opened.error());
-        }
-        return SnapshotBuilder{m_fs}.write(args, m_output, *this, format);
+        const auto configureOutput = [this] {
+            return check(
+                m_archive.get(),
+                archive_write_set_bytes_in_last_block(m_archive.get(), 1),
+                "Could not configure archive output"
+            );
+        };
+        const auto configureFormat = [this, format] {
+            return configure(format);
+        };
+        const auto openOutput = [this, &output] { return open(output); };
+        const auto writeSnapshot = [&] {
+            return SnapshotBuilder{m_fs}.write(args, m_output, *this, format);
+        };
+
+        return kc::startPipeline(configureOutput)
+            .then(configureFormat)
+            .then(openOutput)
+            .then(writeSnapshot)
+            .result();
     }
 
    private:
     Result<void> configure(ArchiveType format) {
         auto* writer = m_archive.get();
         switch (format) {
-            case ArchiveType::zip:
-                return kc::pipeline(
-                    [&] {
-                        return check(
-                            writer, archive_write_set_format_zip(writer),
-                            "Could not set ZIP format"
-                        );
-                    },
-                    [&] {
-                        return check(
-                            writer,
-                            archive_write_zip_set_compression_deflate(writer),
-                            "Could not enable ZIP compression"
-                        );
-                    }
-                );
-            case ArchiveType::tgz:
-                return kc::pipeline(
-                    [&] {
-                        return check(
-                            writer,
-                            archive_write_set_format_pax_restricted(writer),
-                            "Could not set tar format"
-                        );
-                    },
-                    [&] {
-                        // POSIX filenames are bytes; avoid locale-dependent
-                        // conversion.
-                        return check(
-                            writer,
-                            archive_write_set_format_option(
-                                writer, "pax", "hdrcharset", "BINARY"
-                            ),
-                            "Could not preserve tar filenames"
-                        );
-                    },
-                    [&] {
-                        return check(
-                            writer, archive_write_add_filter_gzip(writer),
-                            "Could not enable gzip compression"
-                        );
-                    }
-                );
+            case ArchiveType::zip: {
+                const auto setFormat = [&] {
+                    return check(
+                        writer, archive_write_set_format_zip(writer),
+                        "Could not set ZIP format"
+                    );
+                };
+                const auto enableCompression = [&] {
+                    return check(
+                        writer,
+                        archive_write_zip_set_compression_deflate(writer),
+                        "Could not enable ZIP compression"
+                    );
+                };
+                return kc::startPipeline(setFormat)
+                    .then(enableCompression)
+                    .result();
+            }
+            case ArchiveType::tgz: {
+                const auto setFormat = [&] {
+                    return check(
+                        writer, archive_write_set_format_pax_restricted(writer),
+                        "Could not set tar format"
+                    );
+                };
+                const auto preserveFilenames = [&] {
+                    // POSIX filenames are bytes; avoid locale-dependent
+                    // conversion.
+                    return check(
+                        writer,
+                        archive_write_set_format_option(
+                            writer, "pax", "hdrcharset", "BINARY"
+                        ),
+                        "Could not preserve tar filenames"
+                    );
+                };
+                const auto enableCompression = [&] {
+                    return check(
+                        writer, archive_write_add_filter_gzip(writer),
+                        "Could not enable gzip compression"
+                    );
+                };
+                return kc::startPipeline(setFormat)
+                    .then(preserveFilenames)
+                    .then(enableCompression)
+                    .result();
+            }
             case ArchiveType::directory:
                 return Error::unexpected(
                     ErrorCode::archiverFailure,
@@ -157,22 +166,23 @@ class ArchiveWriter : public SnapshotWriter {
     }
 
     Result<void> finish() override {
-        return kc::pipeline(
-            [&] {
-                return check(
-                    m_archive.get(), archive_write_close(m_archive.get()),
-                    "Could not finalize archive"
-                );
-            },
-            [&] {
-                return m_file->close().transform_error([](const Error& error) {
-                    return Error{
-                        ErrorCode::archiverFailure,
-                        "Could not finalize archive: {}", error.message()
-                    };
-                });
-            }
-        );
+        const auto closeArchive = [&] {
+            return check(
+                m_archive.get(), archive_write_close(m_archive.get()),
+                "Could not finalize archive"
+            );
+        };
+        const auto closeOutput = [&] {
+            const auto closeFile = [&] { return m_file->close(); };
+            const auto context = [](const Error& error) {
+                return Error{
+                    ErrorCode::archiverFailure,
+                    "Could not finalize archive: {}", error.message()
+                };
+            };
+            return kc::startPipeline(closeFile).mapError(context).result();
+        };
+        return kc::startPipeline(closeArchive).then(closeOutput).result();
     }
 
     Result<void> beginEntry(

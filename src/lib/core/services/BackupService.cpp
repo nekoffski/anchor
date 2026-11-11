@@ -1,5 +1,7 @@
 #include "BackupService.hh"
 
+#include <kcore/Pipeline.hh>
+
 #include "BackupRun.hh"
 #include "core/Core.hh"
 #include "core/Error.hh"
@@ -110,16 +112,18 @@ Response BackupService::handle(const ReloadPlansRequest&) {
 }
 
 Response BackupService::handle(const GetSnapshotsRequest& request) {
+    const auto resolve = [&] {
+        return resolveSnapshotTarget(request.backupName);
+    };
+    const auto list = [&](const SnapshotTarget& target) {
+        return target.store.list(target.destination, request.backupName);
+    };
+    const auto respond =
+        [](std::vector<SnapshotSummary> snapshots) -> Response {
+        return GetSnapshotsResponse{std::move(snapshots)};
+    };
     return toResponse(
-        resolveSnapshotTarget(request.backupName)
-            .and_then([&](const SnapshotTarget& target) {
-                return target.store.list(target.destination, request.backupName)
-                    .transform(
-                        [](std::vector<SnapshotSummary> snapshots) -> Response {
-                            return GetSnapshotsResponse{std::move(snapshots)};
-                        }
-                    );
-            })
+        kc::startPipeline(resolve).then(list).transform(respond).result()
     );
 }
 
@@ -128,15 +132,17 @@ Response BackupService::handle(const GetSnapshotRequest&) {
 }
 
 Response BackupService::handle(const RemoveSnapshotRequest& request) {
+    const auto resolve = [&] {
+        return resolveSnapshotTarget(request.backupName);
+    };
+    const auto remove = [&](const SnapshotTarget& target) {
+        return target.store.remove(
+            target.destination, request.backupName, request.uuid
+        );
+    };
+    const auto respond = []() -> Response { return AckResponse{}; };
     return toResponse(
-        resolveSnapshotTarget(request.backupName)
-            .and_then([&](const SnapshotTarget& target) {
-                return target.store
-                    .remove(
-                        target.destination, request.backupName, request.uuid
-                    )
-                    .transform([]() -> Response { return AckResponse{}; });
-            })
+        kc::startPipeline(resolve).then(remove).transform(respond).result()
     );
 }
 

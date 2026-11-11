@@ -140,17 +140,24 @@ Result<StoredSnapshot> readStoredSnapshot(
     const Uuid& uuid
 ) {
     const auto path = manifestPath(root, uuid);
-    return validateFileType(fs, path, kc::FileInfo::Type::regular)
-        .and_then([&] { return fs.readFile(path); })
-        .and_then([&](const Str& contents) {
-            return parseStoredSnapshot(contents, root, backupName, uuid);
-        })
-        .transform_error([&](const Error& error) {
-            return Error{
-                error.code(), "Could not read manifest '{}': {}", path.str(),
-                error.message()
-            };
-        });
+    const auto validate = [&] {
+        return validateFileType(fs, path, kc::FileInfo::Type::regular);
+    };
+    const auto read = [&] { return fs.readFile(path); };
+    const auto parse = [&](const Str& contents) {
+        return parseStoredSnapshot(contents, root, backupName, uuid);
+    };
+    const auto context = [&](const Error& error) {
+        return Error{
+            error.code(), "Could not read manifest '{}': {}", path.str(),
+            error.message()
+        };
+    };
+    return kc::startPipeline(validate)
+        .then(read)
+        .then(parse)
+        .mapError(context)
+        .result();
 }
 
 Result<void> validatePayload(
@@ -207,20 +214,29 @@ Result<SnapshotUpload> prepareUpload(
         );
     }
     const auto source = kc::Path{metadata.location.path}.resolveEnv();
-    return fs.readFile(manifestPath(source.parent(), *uuid))
-        .and_then([&](Str contents) {
-            auto parsed = parseStoredSnapshot(
+    const auto read = [&] {
+        return fs.readFile(manifestPath(source.parent(), *uuid));
+    };
+    const auto prepare = [&](Str contents) {
+        const auto parse = [&] {
+            return parseStoredSnapshot(
                 contents, root, metadata.manifest.backupName, *uuid
             );
-            return std::move(parsed).and_then([&](StoredSnapshot snapshot) {
-                return validateSource(fs, metadata, snapshot, contents)
-                    .transform([&] {
-                        return SnapshotUpload{
-                            std::move(snapshot), source, std::move(contents)
-                        };
-                    });
-            });
-        });
+        };
+        const auto validate = [&](const StoredSnapshot& snapshot) {
+            return validateSource(fs, metadata, snapshot, contents);
+        };
+        const auto assemble = [&](StoredSnapshot snapshot) {
+            return SnapshotUpload{
+                std::move(snapshot), source, std::move(contents)
+            };
+        };
+        return kc::startPipeline(parse)
+            .check(validate)
+            .transform(assemble)
+            .result();
+    };
+    return kc::startPipeline(read).then(prepare).result();
 }
 
 Result<std::vector<kc::Path>> snapshotEntries(
@@ -299,14 +315,18 @@ Result<void> removeStoredSnapshot(
             }
         )
         .and_then([&](const StoredSnapshot& snapshot) {
-            return kc::pipeline(
-                [&] {
-                    return validatePayload(fs, snapshot)
-                        .or_else(ignoreMissingFile);
-                },
-                [&] { return fs.removeAll(snapshot.summary.location.path); },
-                [&] { return fs.remove(manifestPath(root, *uuid)); }
-            );
+            const auto validate = [&] { return validatePayload(fs, snapshot); };
+            const auto removePayload = [&] {
+                return fs.removeAll(snapshot.summary.location.path);
+            };
+            const auto removeManifest = [&] {
+                return fs.remove(manifestPath(root, *uuid));
+            };
+            return kc::startPipeline(validate)
+                .recover(ignoreMissingFile)
+                .then(removePayload)
+                .then(removeManifest)
+                .result();
         });
 }
 
@@ -332,46 +352,67 @@ Result<void> OnDiskSnapshotStore::publishUpload(
             );
         }
     };
-    const auto r = kc::pipeline(
-        [&] { return m_fs.createDirectory(root); },
-        [&] {
-            return validateFileType(m_fs, root, kc::FileInfo::Type::directory);
-        },
-        [&] { return m_fs.copyRecursive(source, staging); }
-    );
+    const auto createDirectory = [&] { return m_fs.createDirectory(root); };
+    const auto validateDirectory = [&] {
+        return validateFileType(m_fs, root, kc::FileInfo::Type::directory);
+    };
+    const auto stagePayload = [&] {
+        return m_fs.copyRecursive(source, staging);
+    };
+    const auto r = kc::startPipeline(createDirectory)
+                       .then(validateDirectory)
+                       .then(stagePayload)
+                       .result();
     if (not r) {
         return r;
     }
     std::lock_guard lock{m_mutex};
-    return kc::pipeline(
-        [&] { return validatePathAbsent(m_fs, payload); },
-        [&] { return validatePathAbsent(m_fs, manifest); },
-        [&] { return m_fs.rename(staging, payload); },
-        [&] { return m_fs.writeFileAtomic(manifest, manifestContents); }
-    );
+    const auto validatePayloadAbsent = [&] {
+        return validatePathAbsent(m_fs, payload);
+    };
+    const auto validateManifestAbsent = [&] {
+        return validatePathAbsent(m_fs, manifest);
+    };
+    const auto publishPayload = [&] { return m_fs.rename(staging, payload); };
+    const auto publishManifest = [&] {
+        return m_fs.writeFileAtomic(manifest, manifestContents);
+    };
+    return kc::startPipeline(validatePayloadAbsent)
+        .then(validateManifestAbsent)
+        .then(publishPayload)
+        .then(publishManifest)
+        .result();
 }
 
 Result<SnapshotMetadata> OnDiskSnapshotStore::put(
     const SnapshotMetadata& metadata, const Location& destination
 ) {
-    return backupDirectory(m_fs, destination, metadata.manifest.backupName)
-        .and_then([&](const kc::Path& root) {
-            return prepareUpload(m_fs, metadata, root)
-                .and_then([&](const SnapshotUpload& upload) {
-                    auto r = publishUpload(
-                        root, upload.source, upload.snapshot.summary,
-                        upload.manifest
-                    );
-                    return std::move(r).transform([&] {
-                        auto stored = metadata;
-                        stored.name =
-                            kc::Path{upload.snapshot.summary.location.path}
-                                .filenameWithExtension();
-                        stored.location = upload.snapshot.summary.location;
-                        return stored;
-                    });
-                });
-        });
+    const auto directory = [&] {
+        return backupDirectory(m_fs, destination, metadata.manifest.backupName);
+    };
+    const auto storeAt = [&](const kc::Path& root) {
+        const auto prepare = [&] {
+            return prepareUpload(m_fs, metadata, root);
+        };
+        const auto publish = [&](const SnapshotUpload& upload) {
+            return publishUpload(
+                root, upload.source, upload.snapshot.summary, upload.manifest
+            );
+        };
+        const auto storedMetadata = [&](const SnapshotUpload& upload) {
+            auto stored = metadata;
+            const auto& summary = upload.snapshot.summary;
+            stored.name =
+                kc::Path{summary.location.path}.filenameWithExtension();
+            stored.location = summary.location;
+            return stored;
+        };
+        return kc::startPipeline(prepare)
+            .check(publish)
+            .transform(storedMetadata)
+            .result();
+    };
+    return kc::startPipeline(directory).then(storeAt).result();
 }
 
 Result<std::vector<SnapshotSummary>> OnDiskSnapshotStore::list(

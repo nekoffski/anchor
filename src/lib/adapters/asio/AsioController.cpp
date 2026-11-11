@@ -11,22 +11,20 @@ namespace anchor {
 
 namespace {
 
-Result<Request> translateRequest(const proto::Message& message) {
-    if (const auto* req = message.as<proto::DiagnosticRequest>()) {
-        return DiagnosticRequest{req->details()};
-    } else if (const auto* req = message.as<proto::TriggerBackupRequest>()) {
-        return TriggerBackupRequest{req->backupName()};
-    } else if (const auto* _ = message.as<proto::GetBackupsRequest>()) {
-        return GetBackupsRequest{};
-    } else if (const auto* _ = message.as<proto::ReloadPlansRequest>()) {
-        return ReloadPlansRequest{};
-    } else if (const auto* req = message.as<proto::GetSnapshotsRequest>()) {
-        return GetSnapshotsRequest{req->backupName()};
-    } else if (const auto* req = message.as<proto::GetSnapshotRequest>()) {
-        return GetSnapshotRequest{req->backupName(), req->uuid()};
-    } else if (const auto* req = message.as<proto::RemoveSnapshotRequest>()) {
-        return RemoveSnapshotRequest{req->backupName(), req->uuid()};
+#define TRANSLATE_REQUEST(Request, ...)                   \
+    if (const auto* req = message.as<proto::Request>()) { \
+        return Request{__VA_ARGS__};                      \
     }
+
+Result<Request> translateRequest(const proto::Message& message) {
+    TRANSLATE_REQUEST(DiagnosticRequest, req->details());
+    TRANSLATE_REQUEST(TriggerBackupRequest, req->backupName());
+    TRANSLATE_REQUEST(GetBackupsRequest);
+    TRANSLATE_REQUEST(ReloadPlansRequest);
+    TRANSLATE_REQUEST(GetSnapshotsRequest, req->backupName());
+    TRANSLATE_REQUEST(GetSnapshotRequest, req->backupName(), req->uuid());
+    TRANSLATE_REQUEST(RemoveSnapshotRequest, req->backupName(), req->uuid());
+
     return Error::unexpected(
         ErrorCode::unknownRequest, "Unknown request type: {}", message.name()
     );
@@ -34,26 +32,19 @@ Result<Request> translateRequest(const proto::Message& message) {
 
 using ResponsePtr = std::unique_ptr<proto::Message>;
 
+#define TRANSLATE_RESPONSE(Response, ...)                      \
+    []([[maybe_unused]] const Response& res) -> ResponsePtr {  \
+        return std::make_unique<proto::Response>(__VA_ARGS__); \
+    }
+
 ResponsePtr translateResponse(const Response& request) {
     return std::visit(
         kc::Overloader{
-            [](const AckResponse&) -> ResponsePtr {
-                return std::make_unique<proto::AckResponse>();
-            },
-            [](const ErrorResponse& err) -> ResponsePtr {
-                return std::make_unique<proto::ErrorResponse>(err.error);
-            },
-            [](const GetBackupsResponse& res) -> ResponsePtr {
-                return std::make_unique<proto::GetBackupsResponse>(res.backups);
-            },
-            [](const GetSnapshotsResponse& response) -> ResponsePtr {
-                return std::make_unique<proto::GetSnapshotsResponse>(
-                    response.snapshots
-                );
-            },
-            [](const GetSnapshotResponse&) -> ResponsePtr {
-                return std::make_unique<proto::GetSnapshotResponse>();
-            }
+            TRANSLATE_RESPONSE(AckResponse),
+            TRANSLATE_RESPONSE(ErrorResponse, res.error),
+            TRANSLATE_RESPONSE(GetBackupsResponse, res.backups),
+            TRANSLATE_RESPONSE(GetSnapshotsResponse, res.snapshots),
+            TRANSLATE_RESPONSE(GetSnapshotResponse)
         },
         request
     );
